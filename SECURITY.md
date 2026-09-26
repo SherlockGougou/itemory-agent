@@ -1,20 +1,28 @@
-# 安全策略
+# Security policy
 
-## 报告漏洞
+**English** | [简体中文](SECURITY.zh-CN.md)
 
-请不要在公开 Issue 中报告安全问题。使用本仓库的 [Private vulnerability reporting](https://github.com/SherlockGougou/itemory-agent/security/advisories/new) 私下提交，内容尽量包括：
+## Reporting a vulnerability
 
-- 受影响的版本（`/api/v1/health` 返回的 `version`）；
-- 复现步骤或概念验证；
-- 可能造成的影响。
+Please don't report security problems in public issues. Use [private vulnerability reporting](https://github.com/SherlockGougou/itemory-agent/security/advisories/new) instead, and include if you can:
 
-## 支持的版本
+- the affected version (shown under **Diagnostics** in the web console, or `"version"` in `/api/v1/health`);
+- steps to reproduce, or a proof of concept;
+- what an attacker could achieve.
 
-只有最新发布的版本接收安全修复。镜像标签 `1` 始终指向最新发布的版本。
+## Supported versions
 
-## 安全边界
+Only the latest release receives security fixes. The `:1` image tag always points to it.
 
-- 媒体接口（`/api/v1/*` 中的读取类接口）使用 App 配对时签发的设备 Bearer 令牌。
-- 管理操作使用控制台管理员会话 Cookie。两套凭据互不相通，App 不接触管理员凭据。
-- 媒体目录以只读方式挂载，服务只向 `/data` 写入索引与缓存。
-- 服务设计为在局域网内使用，不建议直接暴露到公网。
+## How access works
+
+- **The iPhone app** uses a device token that it receives when it scans a pairing QR code. Pairing codes are single-use, expire after 5 minutes and are rate-limited. Device tokens can be revoked at any time under **Pairing & devices**.
+- **The web console** uses an administrator account. The password is stored only as a PBKDF2-HMAC-SHA256 hash, and a signed-in session is kept in an HttpOnly cookie. Opening the pairing window and viewing or revoking paired devices require this session. Scans and settings can be managed either from the console or from a paired app.
+- The two credentials are separate: the app never receives the administrator password, and a device token can't be used to sign in to the console.
+- Photo folders are mounted read-only. The agent only writes to its data folder, runs as a non-root user, and the templates drop all Linux capabilities.
+
+## Recommendations
+
+- Use the agent inside your home network. Don't forward port 8787 from your router to the internet; use a VPN to reach it from outside.
+- The console uses plain HTTP. On a network you don't fully trust, put it behind your NAS's reverse proxy with HTTPS, as described in [HTTPS and remote access](docs/configuration.md#https-and-remote-access).
+- Keep the agent up to date, see [Upgrading](docs/upgrading.md#upgrade).

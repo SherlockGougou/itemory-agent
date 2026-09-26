@@ -4,6 +4,7 @@ data
 dist
 *.md
 deploy
+docs
 ci
 
 # 前端依赖与产物都不进构建上下文：
