@@ -1,0 +1,32 @@
+# QNAP QTS · Container Station → 应用程序 → 创建
+services:
+  itemory-agent:
+    image: ghcr.io/sherlockgougou/itemory-agent:1
+    container_name: itemory-agent
+    restart: unless-stopped
+    user: "1000:1000"
+    read_only: true
+    tmpfs: ["/tmp:size=128m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - /share/CACHEDEV1_DATA:/volumes/cachedata:ro
+      - /share/CACHEDEV1_DATA/Container/itemory-agent:/data
+    ports:
+      - "8787:8787"
+    environment:
+      ITEMORY_PRESET: "balanced"
+      TZ: "Asia/Shanghai"
+    cpus: "1.5"
+    # 资源上限里，**内存**是唯一必须按实际媒体尺寸调整的一项。
+    # 实测（2026-09-21，24 核 fnOS）：
+    #   - 单独一次 2 GB 视频抽帧就要 512m 以上：512m 失败、768m 才成功。
+    #     也就是说支配项是**最大的那个媒体文件**，不是并发数。
+    #   - 48 路并发 + 512m 时，视频抽帧 8 个全被 OOM 杀掉，且失败是静默的
+    #     （界面表现：有些缩略图就是不生成，日志里只有进程被杀）。
+    # 缩略图并发已封顶为 8（见 internal/thumbs/thumbs.go），并发不再是内存的主要变量。
+    # 768m 是实测最低下限，这里取 2g 留余量；库里有更大视频请往上调。
+    # cpus 只影响速度、不影响正确性：1.5 核在这台 24 核机器上让同一批任务
+    # 从 2 秒变 32 秒。小 NAS 上 1.5 核是合理的邻居保护。
+    # 详见 deploy/README.md「资源上限」一节。
+    mem_limit: 2g

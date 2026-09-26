@@ -1,0 +1,109 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * 控制台设计 token。
+ *
+ * 颜色取自 Itemory App 的同一套色板，但**圆角是网页端
+ * 独立的一档**（卡片 12 / 按钮 8，App 是 20 / 14）：鼠标的命中目标比手指小，
+ * 控制台的信息密度也比相册高。这个分叉是有意为之。
+ *
+ * 对比度约束沿用 App 的实测结论：t3（浅色约 3.0:1）只承担微标签与图标，不承担正文；
+ * 正文一律 t1，次要信息用 t2（浅色约 5.6:1，深色约 7.0:1）。
+ */
+
+/* 浅色：白天 / 投屏讲解时用。冷调中性底——控制台是运维语境，
+   暖底会让状态色（红/绿）的判断变钝。 */
+:root {
+  --canvas: #f4f5f8;
+  --rail: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #eef1f6;
+  --line: #dfe3ec;
+  --sep: #e8ebf2;
+  --t1: #1a2233;
+  --t2: #5a6478;
+  --t3: #8c95a8;
+  --brand: #c0563f;
+  --tech: #0e7c9e;
+  --ok: #2e7d5b;
+  --warn: #8a5b12;
+  --danger: #b3283c;
+  color-scheme: light;
+}
+
+/* 深色：默认档。深靛画布 + 通透珊瑚粉强调色，取自 ItemoryTheme 深色板。 */
+.dark {
+  --canvas: #0e1526;
+  --rail: #0a1020;
+  --surface: #16213a;
+  --surface-2: #1d2a4a;
+  --line: #212f50;
+  --sep: #1c2844;
+  --t1: #f6f4f0;
+  --t2: #9eabc0;
+  --t3: #606f87;
+  --brand: #e28d7c;
+  --tech: #38b4dc;
+  --ok: #5dcaa5;
+  --warn: #f5a642;
+  --danger: #ff5c72;
+  color-scheme: dark;
+}
+
+body {
+  color: var(--t1);
+  background: var(--canvas);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 滚动条：日志与表格会常态滚动，默认宽度在深色下太抢眼。 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--surface-2);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--line);
+}
+
+/* 数字一律等宽并锁定字宽，避免扫描计数每秒跳动时整行抖动。 */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* 扫描进行中的不确定态进度条：没有总量就给不了百分比，用滑动的光带表达「在动」。 */
+@keyframes scan-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+.scan-bar {
+  animation: scan-slide 1.4s linear infinite;
+}
+
+/* 焦点环：键盘可达是硬要求，且必须在深色下可见。 */
+:focus-visible {
+  outline: 2px solid var(--tech);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scan-bar {
+    animation: none;
+    transform: none;
+    width: 100%;
+  }
+}

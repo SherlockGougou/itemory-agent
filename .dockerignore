@@ -1,0 +1,17 @@
+.git
+.gitignore
+data
+dist
+*.md
+deploy
+ci
+
+# 前端依赖与产物都不进构建上下文：
+#   - node_modules 由 Dockerfile 的 web 阶段用 npm ci 自建，拷进来只会拖慢构建
+#   - out/（以及 Next 的 .next/ 中间态）一律由 web 阶段现场产出，
+#     避免把开发机上残留的旧产物打进镜像
+node_modules
+internal/api/web/node_modules
+internal/api/web/out
+internal/api/web/.next
+.github

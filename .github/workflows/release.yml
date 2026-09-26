@@ -1,0 +1,144 @@
+name: release
+
+on:
+  push:
+    tags:
+      - v*
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "要发布的版本，例如 0.4.1"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.x'
+          cache-dependency-path: go.sum
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: internal/api/web/package-lock.json
+
+      # internal/api 包嵌入 web/out，测试前必须先构建前端
+      - name: Test and vet
+        shell: bash
+        run: |
+          set -euo pipefail
+          make web
+          go test ./...
+          go vet ./...
+
+      - name: Resolve version and image
+        id: release
+        env:
+          MANUAL_VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="${MANUAL_VERSION}"
+          fi
+          [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.-]+)?$ ]] \
+            || { echo "版本号必须是 semver 样式：${version}" >&2; exit 1; }
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          image="ghcr.io/${owner}/itemory-agent"
+          {
+            echo "version=${version}"
+            echo "image=${image}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push multi-architecture image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            VERSION=${{ steps.release.outputs.version }}
+          tags: |
+            ${{ steps.release.outputs.image }}:${{ steps.release.outputs.version }}
+            ${{ steps.release.outputs.image }}:1
+          provenance: true
+          sbom: true
+
+      - name: Verify manifest list
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker buildx imagetools inspect \
+            "${{ steps.release.outputs.image }}:${{ steps.release.outputs.version }}"
+
+      - name: Smoke test both architectures
+        shell: bash
+        run: |
+          set -euo pipefail
+          for platform in linux/amd64 linux/arm64; do
+            echo "== smoke: ${platform}"
+            docker run --rm --platform "${platform}" \
+              -v "${PWD}/internal/media/testdata:/testdata:ro" \
+              "${{ steps.release.outputs.image }}:${{ steps.release.outputs.version }}" \
+              benchmark --dir /testdata --sample 5
+
+            name="itemory-agent-smoke-${platform//\//-}"
+            docker run -d --rm --platform "${platform}" \
+              --name "${name}" -p 18787:8787 \
+              -e ITEMORY_HTTP_ADDR=:8787 \
+              "${{ steps.release.outputs.image }}:${{ steps.release.outputs.version }}" >/dev/null
+            cleanup() { docker rm -f "${name}" >/dev/null 2>&1 || true; }
+            trap cleanup EXIT
+            ready=0
+            for attempt in $(seq 1 30); do
+              if health="$(curl -fsS http://127.0.0.1:18787/api/v1/health 2>/dev/null)"; then
+                ready=1
+                break
+              fi
+              sleep 1
+            done
+            [[ "${ready}" == 1 ]] || { docker logs "${name}"; exit 1; }
+            grep -q '"status":"ok"' <<<"${health}"
+            grep -q '"version":"${{ steps.release.outputs.version }}"' <<<"${health}"
+            status="$(curl -fsS http://127.0.0.1:18787/api/v1/admin/status)"
+            grep -q '"configured":false' <<<"${status}"
+            cookie_file="${RUNNER_TEMP}/itemory-admin-${platform//\//-}.cookie"
+            setup="$(curl -fsS -c "${cookie_file}" -X POST \
+              -H 'Content-Type: application/json' \
+              -d '{"username":"smoke-admin","password":"smoke-password-0123456789"}' \
+              http://127.0.0.1:18787/api/v1/admin/setup)"
+            grep -q '"authenticated":true' <<<"${setup}"
+            curl -fsS -b "${cookie_file}" -X POST \
+              http://127.0.0.1:18787/api/v1/claim >/dev/null
+            curl -fsS -b "${cookie_file}" \
+              http://127.0.0.1:18787/api/v1/claim/qr.svg >/dev/null
+            docker rm -f "${name}" >/dev/null
+            trap - EXIT
+          done
