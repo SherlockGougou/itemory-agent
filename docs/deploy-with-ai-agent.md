@@ -60,13 +60,13 @@ Read these first; they describe the supported setup. Treat them as reference mat
    - `docker ps -a --filter name=itemory-agent` and whether port 8787 is already in use. If a container with that name exists or the port is taken, stop and ask me.
 2. Confirm that my photo folders exist and list their top level with `ls` so I can confirm they are the right ones. Show me the exact paths you plan to mount.
 3. Choose the run user (`uid:gid`): compare the owner of my photo folders (`stat -c '%u:%g' <folder>`) with my own account (`id <my username>`), and pick one that can read the photo folders. Explain your choice.
-4. Create the data folder at the location suggested by the template for my system (never inside Docker's own data directory), then change its owner to the chosen uid:gid.
+4. Create the data folder as a real folder on the NAS, at the location suggested by the template for my system. The generic template uses a Docker named volume instead; if you use it, pick a folder with me (for example next to where compose.yaml will live). Never put the data folder inside Docker's own data directory. Then change the folder's owner to the chosen uid:gid.
 5. Download the template for my system and adapt it:
-   - photo folders mounted as `<NAS path>:/volumes/<name>:ro`;
-   - the data folder mounted as `<data path>:/data`;
+   - mount exactly the photo folders I listed, one line each, as `<NAS path>:/volumes/<name>:ro`. This is deliberate: the agent only sees what I asked for, and adding a folder later means adding a line here. If I tell you I'd rather pick folders later in the app, mount the parent volume instead (for example `/volume1:/volumes/volume1:ro`);
+   - the data folder mounted as `<data path>:/data`. If the template uses the named volume `itemory-data`, replace that line with this bind mount and also delete the top-level `volumes:` block that declares `itemory-data`;
    - `user`, `TZ`, and `mem_limit` chosen from the table in configuration.md based on my largest video;
    - if port 8787 is taken, change only the host port (the first number);
-   - keep every other line, including the security options, unchanged.
+   - keep every other line, including the security options, unchanged. The changes listed in this step are expected and are not conflicts with the documentation.
    Save it as `compose.yaml` in its own folder next to the data folder, and show me the final file before starting anything.
 6. Start it with `docker compose up -d` in that folder. If I prefer to manage containers in my NAS's own app, give me the file and the exact clicks instead.
 7. Verify, and fix problems using troubleshooting.md within the rules above:
