@@ -9,6 +9,11 @@ Itemory Agent is an optional companion service for the **Itemory** photo app on 
 
 Your photos never leave your NAS: the agent only reads them, and there is no cloud account involved.
 
+> [!TIP]
+> **Let an AI agent deploy it for you.** If you use an AI agent that can run commands on your NAS (for example over SSH), copy our ready-made prompt, fill in a few details and send it. The agent checks your NAS, writes the compose file, starts the container and verifies it, while leaving your photos untouched and never asking for your passwords.
+>
+> **[→ Get the AI deployment prompt](docs/deploy-with-ai-agent.md)**
+
 ## Do I need it?
 
 The Itemory app can already read a NAS directly through a shared folder (SMB or WebDAV). The agent is worth installing when that feels slow.
@@ -36,7 +41,7 @@ The Itemory app can already read a NAS directly through a shared folder (SMB or 
 
 Never used Docker on your NAS before? Follow the [installation guide](docs/installation.md). It walks through every step, including how to find your folder paths.
 
-Using an AI agent that can run commands on your NAS? Give it the ready-made prompt in [Deploy with an AI agent](docs/deploy-with-ai-agent.md) and let it do the setup.
+Prefer to hand the setup to an AI agent? See [Deploy with an AI agent](docs/deploy-with-ai-agent.md).
 
 ## Documentation
 

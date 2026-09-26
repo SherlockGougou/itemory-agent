@@ -2,7 +2,10 @@
 
 [English](installation.md) | **简体中文**
 
-本指南假设你从没在 NAS 上运行过容器。如果你已经熟悉 Docker，看 README 里的[快速开始](../README.zh-CN.md#快速开始)就够了。如果你在用能操作 NAS 的 AI Agent，也可以[让它替你完成第 1 到第 4 步](deploy-with-ai-agent.zh-CN.md)。
+本指南假设你从没在 NAS 上运行过容器。如果你已经熟悉 Docker，看 README 里的[快速开始](../README.zh-CN.md#快速开始)就够了。
+
+> [!TIP]
+> **在用 AI Agent？** 能在 NAS 上执行命令的 Agent 可以替你完成第 1 到第 4 步。**[→ 获取 AI 部署提示词](deploy-with-ai-agent.zh-CN.md)**，完成后从[第 5 步](#第-5-步-创建管理员账号)继续。
 
 - [开始之前](#开始之前)
 - [第 1 步 找到照片文件夹](#第-1-步-找到照片文件夹)

@@ -2,7 +2,10 @@
 
 **English** | [简体中文](installation.zh-CN.md)
 
-This guide assumes you have never run a container on your NAS before. If you have, the [Quick start](../README.md#quick-start) in the README is enough. If you use an AI agent that can run commands on your NAS, you can also [let it do steps 1 to 4 for you](deploy-with-ai-agent.md).
+This guide assumes you have never run a container on your NAS before. If you have, the [Quick start](../README.md#quick-start) in the README is enough.
+
+> [!TIP]
+> **Have an AI agent?** An agent that can run commands on your NAS can do steps 1 to 4 for you. **[→ Get the AI deployment prompt](deploy-with-ai-agent.md)**, then continue here from [step 5](#step-5-create-the-administrator-account).
 
 - [Before you start](#before-you-start)
 - [Step 1: Find your photo folder](#step-1-find-your-photo-folder)

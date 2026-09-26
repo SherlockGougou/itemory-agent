@@ -9,6 +9,11 @@ Itemory Agent（App 中称为“增强服务”）是 iPhone 相册应用 **Item
 
 照片不会离开你的 NAS：服务只读取文件，不需要任何云端账号。
 
+> [!TIP]
+> **让 AI Agent 替你部署。** 如果你在用能在 NAS 上执行命令的 AI Agent（例如通过 SSH），复制我们准备好的提示词，填几项信息后发给它。Agent 会检查 NAS 环境、写好 compose 文件、启动容器并验证结果；全程不会改动你的照片，也不会向你索要密码。
+>
+> **[→ 获取 AI 部署提示词](docs/deploy-with-ai-agent.zh-CN.md)**
+
 ## 我需要它吗？
 
 Itemory App 本身就能通过共享文件夹（SMB 或 WebDAV）直接读取 NAS。如果觉得这种方式慢，再安装增强服务。
@@ -36,7 +41,7 @@ Itemory App 本身就能通过共享文件夹（SMB 或 WebDAV）直接读取 NA
 
 第一次在 NAS 上用 Docker？请按[安装指南](docs/installation.zh-CN.md)操作，里面有每一步的说明，包括怎么找到文件夹路径。
 
-在用能操作 NAS 的 AI Agent？把[让 AI Agent 帮你部署](docs/deploy-with-ai-agent.zh-CN.md)中现成的提示词发给它，让它替你完成安装。
+想把安装交给 AI Agent？见[让 AI Agent 帮你部署](docs/deploy-with-ai-agent.zh-CN.md)。
 
 ## 文档
 
