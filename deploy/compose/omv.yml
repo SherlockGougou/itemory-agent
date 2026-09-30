@@ -1,4 +1,4 @@
-# Itemory Agent for OpenMediaVault (openmediavault-compose plugin)
+# Itemory Private Cloud for OpenMediaVault (openmediavault-compose plugin)
 # Services -> Compose -> Files -> Add -> paste this file.
 # Guide: https://github.com/SherlockGougou/itemory-agent/blob/main/docs/installation.md
 services:

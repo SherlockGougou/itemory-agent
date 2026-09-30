@@ -1,4 +1,4 @@
-# Itemory Agent for Unraid (amd64 only)
+# Itemory Private Cloud for Unraid (amd64 only)
 # Docker -> Compose (Compose Manager plugin) -> Add New Stack -> paste this file.
 # Guide: https://github.com/SherlockGougou/itemory-agent/blob/main/docs/installation.md
 services:

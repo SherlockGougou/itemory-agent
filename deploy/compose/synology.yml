@@ -1,4 +1,4 @@
-# Itemory Agent for Synology DSM 7.2+
+# Itemory Private Cloud for Synology DSM 7.2+
 # Container Manager -> Project -> Create -> paste this file.
 # Create the data folder (docker/itemory-agent) with File Station first.
 # Guide: https://github.com/SherlockGougou/itemory-agent/blob/main/docs/installation.md

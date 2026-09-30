@@ -2,7 +2,7 @@
 
 **English** | [简体中文](configuration.zh-CN.md)
 
-Most settings are changed from the Itemory app under **Enhanced Service Settings**. The compose template only controls how the container itself runs.
+Most settings are changed from the Itemory app under **Itemory Private Cloud Settings**. The compose template only controls how the container itself runs.
 
 - [Template options](#template-options)
 - [Performance presets](#performance-presets)
@@ -40,7 +40,7 @@ Two more environment variables exist for advanced setups. The image already sets
 
 ## Performance presets
 
-A preset sets several resource limits at once. Pick the initial one with `ITEMORY_PRESET`; afterwards, change it in the app under **Enhanced Service Settings → Resource Preset**.
+A preset sets several resource limits at once. Pick the initial one with `ITEMORY_PRESET`; afterwards, change it in the app under **Itemory Private Cloud Settings → Resource Preset**.
 
 | Preset | Parallel jobs | Thumbnail size | Thumbnail cache | Original-file cache | Thumbnails generated per night |
 | --- | --- | --- | --- | --- | --- |
@@ -73,7 +73,7 @@ A killed job leaves no clear error message, which is why it is best to size the 
 
 ## Settings in the app
 
-These are changed in the Itemory app under **Enhanced Service Settings** and take effect immediately:
+These are changed in the Itemory app under **Itemory Private Cloud Settings** and take effect immediately:
 
 - **Libraries**: which folders are indexed. Saving rebuilds the index for the new scope.
 - **Folders to skip**: folder and file names that are never indexed. System folders such as `@eaDir`, `#recycle`, `#snapshot`, `.Trash` and `$RECYCLE.BIN` are skipped by default.

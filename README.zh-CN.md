@@ -1,11 +1,11 @@
-# Itemory Agent
+# Itemory 私有云服务
 
 [English](README.md) | **简体中文**
 
 [![ci](https://github.com/SherlockGougou/itemory-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/SherlockGougou/itemory-agent/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Itemory Agent（App 中称为“增强服务”）是 iPhone 相册应用 **Itemory** 的可选配套服务。它运行在你自己的 NAS（或任何装了 Docker 的电脑）上，为你选定的文件夹里的照片和视频建立索引、提前生成缩略图，再通过家里的局域网提供给 App。
+Itemory 私有云服务是 iPhone 相册应用 **Itemory** 的可选自建服务。它运行在你自己的私有云设备、NAS 或任何装有 Docker 的电脑上，为选定文件夹里的照片和视频建立索引、提前生成缩略图，再通过家里的局域网提供给 App。
 
 照片不会离开你的 NAS：服务只读取文件，不需要任何云端账号。
 
@@ -16,9 +16,9 @@ Itemory Agent（App 中称为“增强服务”）是 iPhone 相册应用 **Item
 
 ## 我需要它吗？
 
-Itemory App 本身就能通过共享文件夹（SMB 或 WebDAV）直接读取 NAS。如果觉得这种方式慢，再安装增强服务。
+Itemory App 本身就能通过共享文件夹（SMB 或 WebDAV）直接读取私有云设备。如果觉得这种方式慢，再安装 Itemory 私有云服务。
 
-| | 共享文件夹（SMB / WebDAV） | 增强服务 |
+| | 共享文件夹（SMB / WebDAV） | Itemory 私有云服务 |
 | --- | --- | --- |
 | 部署 | NAS 上不用安装任何东西 | 运行一个 Docker 容器 |
 | 浏览速度 | App 自己逐个读取、扫描文件 | 索引和缩略图已在 NAS 上提前准备好 |
@@ -29,15 +29,15 @@ Itemory App 本身就能通过共享文件夹（SMB 或 WebDAV）直接读取 NA
 
 - 一台能运行 **Docker 容器和 Docker Compose** 的 NAS 或电脑，包括群晖（Container Manager）、威联通（Container Station）、TrueNAS SCALE、Unraid、飞牛 fnOS、OpenMediaVault 以及大多数 Linux 机器。支持 `amd64`（Intel/AMD）和 `arm64`（ARM）两种架构。
 - 知道照片和视频存放在 NAS 上的哪个文件夹。
-- 装有 Itemory App 的 iPhone。NAS 数据源属于 Itemory Pro 权益，免费体验期内可以使用。
+- 装有 Itemory App 的 iPhone。私有云数据源属于 Itemory Pro 权益，免费体验期内可以使用。
 - iPhone 和 NAS 在同一个网络里（通常是同一个 Wi-Fi）。
 
 ## 快速开始
 
 1. **创建容器**：从 [`deploy/compose/`](deploy/compose) 里选你的 NAS 对应的模板，把照片文件夹路径改成你自己的，然后部署。
 2. **打开管理网页**：浏览器访问 `http://<NAS 的 IP>:8787`，创建管理员账号。
-3. **配对 iPhone**：在管理网页打开「配对与设备」→「开始配对」，然后在 App 中进入「数据源」→「增强服务」→「扫描二维码」。
-4. **选择文件夹**：在 App 中打开「增强服务设置」→「媒体库」→「添加文件夹」，保存后立即开始第一次扫描。
+3. **配对 iPhone**：在管理网页打开「配对与设备」→「开始配对」，然后在 App 中进入「数据源」→「Itemory 私有云服务」→「扫描二维码」。
+4. **选择文件夹**：在 App 中打开「Itemory 私有云设置」→「媒体库」→「添加文件夹」，保存后立即开始第一次扫描。
 
 第一次在 NAS 上用 Docker？请按[安装指南](docs/installation.zh-CN.md)操作，里面有每一步的说明，包括怎么找到文件夹路径。
 
@@ -59,7 +59,7 @@ Itemory App 本身就能通过共享文件夹（SMB 或 WebDAV）直接读取 NA
 
 ```mermaid
 flowchart LR
-  Photos["NAS 上的照片文件夹<br/>（只读挂载）"] --> Agent["Itemory Agent 容器<br/>索引 · 缩略图 · API"]
+  Photos["NAS 上的照片文件夹<br/>（只读挂载）"] --> Agent["Itemory 私有云服务容器<br/>索引 · 缩略图 · API"]
   Agent --> Data[("数据文件夹<br/>索引、设置、缓存")]
   Agent -- "8787 端口的 HTTP API" --> App["iPhone 上的 Itemory App"]
   Admin["你，在浏览器里"] -- "管理网页" --> Agent

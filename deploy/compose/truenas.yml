@@ -1,4 +1,4 @@
-# Itemory Agent for TrueNAS SCALE 24.10+ (amd64 only)
+# Itemory Private Cloud for TrueNAS SCALE 24.10+ (amd64 only)
 # Apps -> Discover Apps -> Custom App -> install from YAML -> paste this file.
 # TrueNAS uses ACLs: if folders are unreadable, adjust `user` or the dataset ACL.
 # Guide: https://github.com/SherlockGougou/itemory-agent/blob/main/docs/installation.md

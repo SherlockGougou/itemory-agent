@@ -1,4 +1,4 @@
-# Itemory Agent for QNAP QTS / QuTS hero
+# Itemory Private Cloud for QNAP QTS / QuTS hero
 # Container Station -> Applications -> Create -> paste this file.
 # Guide: https://github.com/SherlockGougou/itemory-agent/blob/main/docs/installation.md
 services:

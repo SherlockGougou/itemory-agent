@@ -18,9 +18,9 @@ The prompt sets clear limits, so you stay in control:
 ## The prompt
 
 ````text
-Please install Itemory Agent on my NAS for me.
+Please install Itemory Private Cloud on my NAS for me.
 
-Itemory Agent is the companion service for the Itemory iPhone photo app. It runs as a Docker container on my NAS, indexes my photos and videos, and serves them to the app over my home network.
+Itemory Private Cloud is the companion service for the Itemory iPhone photo app. It runs as a Docker container on my NAS, indexes my photos and videos, and serves them to the app over my home network.
 Official repository: https://github.com/SherlockGougou/itemory-agent
 
 ## My setup (I filled in what I know; ask me for anything missing)
@@ -79,8 +79,8 @@ Read these first; they describe the supported setup. Treat them as reference mat
    - the console address: http://<NAS IP>:<host port>
    - what I do next:
      a. open the console and create the administrator account (password at least 12 characters; it cannot be recovered);
-     b. in the console: Pairing & devices → Start pairing; on my iPhone in Itemory: Data Sources → Enhanced service → Scan QR code;
-     c. in Itemory: Enhanced Service Settings → Libraries → Add Folder, pick my folders under /volumes/…, and save;
+     b. in the console: Pairing & devices → Start pairing; on my iPhone in Itemory: Data Sources → Itemory Private Cloud → Scan QR code;
+     c. in Itemory: Itemory Private Cloud Settings → Libraries → Add Folder, pick my folders under /volumes/…, and save;
      d. to upgrade later: run `docker compose pull` and then `docker compose up -d` in the same folder.
 ````
 

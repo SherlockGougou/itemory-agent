@@ -5,8 +5,8 @@ import { I18nProvider } from "@/components/I18nProvider";
 import { Shell } from "@/components/Shell";
 
 export const metadata: Metadata = {
-  title: "Itemory 增强服务",
-  description: "Itemory NAS Agent 控制台",
+  title: "Itemory 私有云服务",
+  description: "Itemory 自建照片私有云控制台",
   robots: "noindex",
   icons: {
     icon: [

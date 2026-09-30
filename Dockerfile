@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 #
-# Itemory NAS Agent —— 多架构镜像（linux/amd64 + linux/arm64）
+# Itemory 私有云服务——多架构镜像（linux/amd64 + linux/arm64）
 #
 # 两个构建阶段：先编译控制台前端，再交叉编译 Go 二进制。
 #
@@ -42,7 +42,7 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
 FROM debian:12-slim
 # GHCR 依据 source 把镜像关联到源码仓库，并在包页面显示描述与许可证
 LABEL org.opencontainers.image.source="https://github.com/SherlockGougou/itemory-agent" \
-      org.opencontainers.image.description="Itemory NAS Agent: indexes photos and videos on a NAS and serves them to the Itemory app" \
+      org.opencontainers.image.description="Itemory Private Cloud: indexes self-hosted photos and videos and serves them to the Itemory app" \
       org.opencontainers.image.licenses="MIT"
 RUN apt-get update && apt-get install -y --no-install-recommends \
       libvips-tools libheif1 libheif-examples ffmpeg ca-certificates tzdata \

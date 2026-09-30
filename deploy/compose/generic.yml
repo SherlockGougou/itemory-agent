@@ -1,4 +1,4 @@
-# Itemory Agent for any machine with Docker Compose
+# Itemory Private Cloud for any machine with Docker Compose
 # Save as compose.yaml, change the photo path, then run: docker compose up -d
 # Guide: https://github.com/SherlockGougou/itemory-agent/blob/main/docs/installation.md
 services:

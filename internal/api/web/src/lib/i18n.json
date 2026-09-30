@@ -1,7 +1,7 @@
 {
   "zh-Hans": {
-    "app.title.short": "增强服务",
-    "app.title.sub": "NAS 增强服务",
+    "app.title.short": "Itemory 私有云",
+    "app.title.sub": "自建照片私有云服务",
     "app.language": "语言",
     "app.theme.toLight": "切换到浅色",
     "app.theme.toDark": "切换到深色",
@@ -36,7 +36,7 @@
 
     "admin.setupTitle": "设置管理员账号",
     "admin.loginTitle": "管理员登录",
-    "admin.setupIntro": "首次使用请设置一个 NAS 管理员账号。它决定谁能开启配对窗口、触发扫描与修改设置。",
+    "admin.setupIntro": "首次使用请设置一个私有云服务管理员账号。它决定谁能开启配对窗口、触发扫描与修改设置。",
     "admin.loginIntro": "登录后可以管理配对窗口、设备授权、扫描与缓存。",
     "admin.username": "管理员账号",
     "admin.password": "管理员密码",
@@ -120,7 +120,7 @@
     "pair.qrAlt": "配对二维码",
     "pair.qrFailed": "二维码加载失败，点「重新生成」再试",
     "pair.scanHintShort": "用 Itemory App 扫描",
-    "pair.scanHint": "打开 Itemory App → 数据源 → Itemory 增强服务 → 扫描二维码。",
+    "pair.scanHint": "打开 Itemory App → 数据源 → Itemory 私有云服务 → 扫描二维码。",
     "pair.devicesLabel": "已配对设备",
     "pair.windowLabel": "配对窗口时长",
     "pair.codeLengthLabel": "配对码位数",
@@ -286,8 +286,8 @@
   },
 
   "zh-Hant": {
-    "app.title.short": "增強服務",
-    "app.title.sub": "NAS 增強服務",
+    "app.title.short": "Itemory 私有雲",
+    "app.title.sub": "自建照片私有雲服務",
     "app.language": "語言",
     "app.theme.toLight": "切換到淺色",
     "app.theme.toDark": "切換到深色",
@@ -322,7 +322,7 @@
 
     "admin.setupTitle": "設定管理員帳號",
     "admin.loginTitle": "管理員登入",
-    "admin.setupIntro": "首次使用請設定一個 NAS 管理員帳號。它決定誰能開啟配對視窗、觸發掃描與修改設定。",
+    "admin.setupIntro": "首次使用請設定一個私有雲服務管理員帳號。它決定誰能開啟配對視窗、觸發掃描與修改設定。",
     "admin.loginIntro": "登入後可以管理配對視窗、裝置授權、掃描與快取。",
     "admin.username": "管理員帳號",
     "admin.password": "管理員密碼",
@@ -406,7 +406,7 @@
     "pair.qrAlt": "配對 QR Code",
     "pair.qrFailed": "QR Code 載入失敗，點「重新產生」再試",
     "pair.scanHintShort": "用 Itemory App 掃描",
-    "pair.scanHint": "開啟 Itemory App → 資料來源 → Itemory 增強服務 → 掃描 QR Code。",
+    "pair.scanHint": "開啟 Itemory App → 資料來源 → Itemory 私有雲服務 → 掃描 QR Code。",
     "pair.devicesLabel": "已配對裝置",
     "pair.windowLabel": "配對視窗時長",
     "pair.codeLengthLabel": "配對碼位數",
@@ -572,8 +572,8 @@
   },
 
   "en": {
-    "app.title.short": "Agent",
-    "app.title.sub": "NAS companion service",
+    "app.title.short": "Itemory Private Cloud",
+    "app.title.sub": "Self-hosted photo service",
     "app.language": "Language",
     "app.theme.toLight": "Switch to light",
     "app.theme.toDark": "Switch to dark",
@@ -692,7 +692,7 @@
     "pair.qrAlt": "Pairing QR code",
     "pair.qrFailed": "QR code failed to load. Generate a new one and retry.",
     "pair.scanHintShort": "Scan with the Itemory app",
-    "pair.scanHint": "Open the Itemory app → Data sources → Itemory Agent → Scan QR code.",
+    "pair.scanHint": "Open the Itemory app → Data sources → Itemory Private Cloud → Scan QR code.",
     "pair.devicesLabel": "Paired devices",
     "pair.windowLabel": "Window duration",
     "pair.codeLengthLabel": "Code length",
@@ -858,8 +858,8 @@
   },
 
   "ja": {
-    "app.title.short": "エージェント",
-    "app.title.sub": "NAS 連携サービス",
+    "app.title.short": "Itemory プライベートクラウド",
+    "app.title.sub": "セルフホスト型フォトサービス",
     "app.language": "言語",
     "app.theme.toLight": "ライトに切り替え",
     "app.theme.toDark": "ダークに切り替え",
@@ -978,7 +978,7 @@
     "pair.qrAlt": "ペアリング QR コード",
     "pair.qrFailed": "QR コードを読み込めません。「再生成」してお試しください。",
     "pair.scanHintShort": "Itemory アプリで読み取る",
-    "pair.scanHint": "Itemory アプリ → データソース → Itemory エージェント → QR コードを読み取る。",
+    "pair.scanHint": "Itemory アプリ → データソース → Itemory プライベートクラウド → QR コードを読み取る。",
     "pair.devicesLabel": "ペアリング済みデバイス",
     "pair.windowLabel": "ウィンドウの長さ",
     "pair.codeLengthLabel": "コードの桁数",
@@ -1144,8 +1144,8 @@
   },
 
   "ko": {
-    "app.title.short": "에이전트",
-    "app.title.sub": "NAS 연동 서비스",
+    "app.title.short": "Itemory 프라이빗 클라우드",
+    "app.title.sub": "셀프 호스팅 사진 서비스",
     "app.language": "언어",
     "app.theme.toLight": "라이트로 전환",
     "app.theme.toDark": "다크로 전환",
@@ -1264,7 +1264,7 @@
     "pair.qrAlt": "페어링 QR 코드",
     "pair.qrFailed": "QR 코드를 불러오지 못했습니다. '다시 생성' 후 재시도하세요.",
     "pair.scanHintShort": "Itemory 앱으로 스캔",
-    "pair.scanHint": "Itemory 앱 → 데이터 소스 → Itemory 에이전트 → QR 코드 스캔.",
+    "pair.scanHint": "Itemory 앱 → 데이터 소스 → Itemory 프라이빗 클라우드 → QR 코드 스캔.",
     "pair.devicesLabel": "페어링된 기기",
     "pair.windowLabel": "창 유지 시간",
     "pair.codeLengthLabel": "코드 자릿수",

@@ -166,7 +166,7 @@ func (r Report) JSON() string {
 // Text renders the report for humans.
 func (r Report) Text() string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Itemory NAS Agent benchmark\n")
+	fmt.Fprintf(&b, "Itemory Private Cloud benchmark\n")
 	fmt.Fprintf(&b, "  directory : %s\n", r.Dir)
 	fmt.Fprintf(&b, "  sampled   : %d media files %v\n", r.Sampled, r.ByExtension)
 	fmt.Fprintf(&b, "  probe     : %.2f ms/file (≈%d KB read/file)\n", r.ProbeMSAvg, r.ProbeBytesAvg/1024)

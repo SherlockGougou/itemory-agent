@@ -134,7 +134,7 @@ The first visit asks you to **set up the administrator**. Choose a username (3�
 ## Step 6: Pair your iPhone
 
 1. In the web console, open **Pairing & devices** and click **Start pairing**. A QR code appears. It is valid for 5 minutes and works only once.
-2. On the iPhone, open Itemory and go to **Data Sources → Enhanced service → Scan QR code**.
+2. On the iPhone, open Itemory and go to **Data Sources → Itemory Private Cloud → Scan QR code**.
 3. Point the camera at the QR code. The app confirms when pairing is complete.
 
 To pair another iPhone, click **Start pairing** again for a new code.
@@ -143,11 +143,11 @@ To pair another iPhone, click **Start pairing** again for a new code.
 
 A freshly paired agent has no libraries yet. In the app:
 
-1. Open **Enhanced Service Settings → Libraries → Add Folder**.
+1. Open **Itemory Private Cloud Settings → Libraries → Add Folder**.
 2. Pick the folders that contain your photos and videos. They appear under `/volumes/…`, the paths you set up in step 4.
 3. Save. The agent starts indexing immediately.
 
-The first scan can take from a few minutes to several hours, depending on how many files you have and how fast the NAS is. Its progress is shown in the app's *Enhanced Service Settings* and on the console's **Overview** page. After that, the agent checks for changes every night at 03:00 and only reads new or modified files.
+The first scan can take from a few minutes to several hours, depending on how many files you have and how fast the NAS is. Its progress is shown in the app's *Itemory Private Cloud Settings* and on the console's **Overview** page. After that, the agent checks for changes every night at 03:00 and only reads new or modified files.
 
 ## Step 8: Check that everything works
 

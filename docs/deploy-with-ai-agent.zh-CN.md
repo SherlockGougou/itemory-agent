@@ -18,9 +18,9 @@
 ## 提示词
 
 ````text
-请帮我在 NAS 上安装 Itemory Agent。
+请帮我在 NAS 上安装 Itemory 私有云服务。
 
-Itemory Agent 是 iPhone 相册应用 Itemory 的配套服务（App 中叫“增强服务”）。它以 Docker 容器的形式运行在我的 NAS 上，为照片和视频建立索引，并通过家里的局域网提供给 App。
+Itemory 私有云服务是 iPhone 相册应用 Itemory 的配套服务。它以 Docker 容器的形式运行在我的 NAS 上，为照片和视频建立索引，并通过家里的局域网提供给 App。
 官方仓库：https://github.com/SherlockGougou/itemory-agent
 
 ## 我的环境（能填的我已经填了，缺的请问我）
@@ -79,8 +79,8 @@ Itemory Agent 是 iPhone 相册应用 Itemory 的配套服务（App 中叫“增
    - 管理网页地址：http://<NAS 的 IP>:<宿主端口>
    - 接下来我要做的事：
      a. 打开管理网页，创建管理员账号（密码至少 12 位，无法找回）；
-     b. 在管理网页中进入「配对与设备」→「开始配对」；在 iPhone 的 Itemory 中进入「数据源 → 增强服务 → 扫描二维码」；
-     c. 在 Itemory 中进入「增强服务设置 → 媒体库 → 添加文件夹」，选择 /volumes/… 下我的文件夹并保存；
+     b. 在管理网页中进入「配对与设备」→「开始配对」；在 iPhone 的 Itemory 中进入「数据源 → Itemory 私有云服务 → 扫描二维码」；
+     c. 在 Itemory 中进入「Itemory 私有云设置 → 媒体库 → 添加文件夹」，选择 /volumes/… 下我的文件夹并保存；
      d. 以后升级时，在同一个文件夹中先执行 `docker compose pull`，再执行 `docker compose up -d`。
 ````
 

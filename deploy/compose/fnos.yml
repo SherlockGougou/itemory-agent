@@ -1,4 +1,4 @@
-# Itemory Agent for fnOS
+# Itemory Private Cloud for fnOS
 # Docker app -> Compose -> create a project -> paste this file.
 # Guide: https://github.com/SherlockGougou/itemory-agent/blob/main/docs/installation.md
 services:

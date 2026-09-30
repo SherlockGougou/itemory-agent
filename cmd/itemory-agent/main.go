@@ -1,4 +1,4 @@
-// Command itemory-agent is the NAS-side companion service for Itemory.
+// Command itemory-agent is the self-hosted private cloud service for Itemory.
 //
 // Subcommands:
 //
@@ -65,7 +65,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprint(os.Stderr, `itemory-agent - Itemory NAS companion service
+	fmt.Fprint(os.Stderr, `itemory-agent - Itemory Private Cloud service
 
 usage:
   itemory-agent [serve]        run HTTP API + scanner (default)
