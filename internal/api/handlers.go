@@ -220,7 +220,7 @@ func (s *Server) handleFolders(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleVolumes(w http.ResponseWriter, r *http.Request) {
 	settings := s.d.Settings.Get()
-	found := volumes.Discover(settings.Libraries)
+	found := volumes.Discover(settings.Libraries, s.d.DataDir)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"volumes":       found,
 		"suggestedUser": volumes.SuggestedUser(found),
@@ -754,7 +754,7 @@ func (s *Server) handleDiagnostics(w http.ResponseWriter, r *http.Request) {
 	settings := s.d.Settings.Get()
 	stats, _ := s.d.Index.Stats()
 	thumbFiles, thumbBytes := s.d.Thumbs.Stats()
-	found := volumes.Discover(settings.Libraries)
+	found := volumes.Discover(settings.Libraries, s.d.DataDir)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"version":       s.d.Version,
 		"apiVersion":    s.d.APIVersion,

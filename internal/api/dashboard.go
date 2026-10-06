@@ -165,7 +165,7 @@ func (s *Server) discoverVolumes(libraries []config.Library, refresh bool) []vol
 	}
 	s.volCache.mu.Unlock()
 
-	found := volumes.Discover(libraries)
+	found := volumes.Discover(libraries, s.d.DataDir)
 
 	s.volCache.mu.Lock()
 	s.volCache.items, s.volCache.at = found, time.Now()

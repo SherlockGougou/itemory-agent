@@ -361,3 +361,74 @@ func writeJPEG(t *testing.T, path string, width, height int) {
 		t.Fatal(err)
 	}
 }
+
+// 探测版本 4 只改了视频：升级后的增量扫描重读旧版本写入的视频行，照片行原样复用。
+// 同时验证扫描正常结束后会触发收尾回调。
+func TestIncrementalScanReprobesOnlyOutdatedVideos(t *testing.T) {
+	library := t.TempDir()
+	photo := filepath.Join(library, "IMG_20240102_030405.jpg")
+	writeJPEG(t, photo, 200, 120)
+	video := filepath.Join(library, "IMG_2000.MOV")
+	if err := os.WriteFile(video, []byte("not-a-real-movie-but-classified-by-extension"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	index, err := store.Open(filepath.Join(t.TempDir(), "index.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer index.Close()
+	settings, err := config.Load(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := settings.Get()
+	current.Libraries = []config.Library{{ID: "lib", Name: "lib", Path: library}}
+	if err := settings.Update(current); err != nil {
+		t.Fatal(err)
+	}
+	scanner := New(index, settings, events.NewHub(), logging.New("error", nil))
+	finished := make(chan struct{}, 4)
+	scanner.OnFinished(func() { finished <- struct{}{} })
+
+	if err := scanner.Scan("incremental"); err != nil {
+		t.Fatalf("initial scan: %v", err)
+	}
+	select {
+	case <-finished:
+	case <-time.After(5 * time.Second):
+		t.Fatal("OnFinished was not called after a completed scan")
+	}
+
+	// 把两行都改写成上一版探测逻辑的产物。
+	existing, err := index.Existing()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var downgraded []store.Entry
+	for _, entry := range existing {
+		entry.ProbeVersion = 3
+		downgraded = append(downgraded, entry)
+	}
+	if len(downgraded) != 2 {
+		t.Fatalf("indexed entries = %d, want 2", len(downgraded))
+	}
+	if err := index.UpsertMany(downgraded); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := scanner.Scan("incremental"); err != nil {
+		t.Fatalf("second scan: %v", err)
+	}
+	progress := scanner.Status()
+	if progress.Reused != 1 || progress.MediaIndexed != 1 {
+		t.Fatalf("reused=%d indexed=%d, want the photo reused and the video re-probed", progress.Reused, progress.MediaIndexed)
+	}
+	after, ok, err := index.GetByPath(video)
+	if err != nil || !ok {
+		t.Fatalf("video row missing: ok=%v err=%v", ok, err)
+	}
+	if after.ProbeVersion != media.ProbeVersion {
+		t.Fatalf("video probe version = %d, want %d", after.ProbeVersion, media.ProbeVersion)
+	}
+}

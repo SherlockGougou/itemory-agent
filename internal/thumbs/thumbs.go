@@ -59,6 +59,8 @@ type Manager struct {
 	statsAt   time.Time
 	statsN    int
 	statsSize int64
+
+	pregen pregenState
 }
 
 // generateTimeout 是单次缩略图生成的硬上限。
@@ -519,6 +521,8 @@ func (m *Manager) Evict() error {
 
 // Clear removes every cached thumbnail.
 func (m *Manager) Clear() error {
+	// 用户刚要求清空：正在进行的后台预生成必须停下，否则缓存会立刻被重新填满。
+	m.StopPregenerate()
 	m.flightMu.Lock()
 	defer m.flightMu.Unlock()
 	// 清空是用户显式动作，读数必须立刻归零，不能等 TTL 到期。

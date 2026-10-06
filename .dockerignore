@@ -2,6 +2,10 @@
 .gitignore
 data
 dist
+# 本地验证产物与临时文件，体积可达数百 MB，进了构建上下文只会拖慢每一次构建
+.agent-temp
+.temp
+artifacts
 *.md
 deploy
 docs

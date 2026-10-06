@@ -12,6 +12,7 @@ This guide assumes you have never run a container on your NAS before. If you hav
 - [Step 2: Pick a data folder](#step-2-pick-a-data-folder)
 - [Step 3: Pick the run user](#step-3-pick-the-run-user)
 - [Step 4: Create the container](#step-4-create-the-container)
+  - [Check that it started](#check-that-it-started)
 - [Step 5: Create the administrator account](#step-5-create-the-administrator-account)
 - [Step 6: Pair your iPhone](#step-6-pair-your-iphone)
 - [Step 7: Choose the folders to index](#step-7-choose-the-folders-to-index)
@@ -49,7 +50,7 @@ Either way the mount is **read-only**: the agent can never change or delete your
 
 ## Step 2: Pick a data folder
 
-The agent needs one writable folder for its own files: the photo index, settings, the administrator account, the list of paired devices and the thumbnail cache. With the default settings, plan for about 6 GB of free space (thumbnail cache up to 5 GB, original-file cache up to 1 GB, plus the index).
+The agent needs one writable folder for its own files: the photo index, settings, the administrator account, the list of paired devices and the thumbnail cache. With the default settings, plan for about 6 GB of free space: the thumbnail cache grows up to 5 GB, and the index and logs need the rest.
 
 Each template already suggests a location, for example `/volume1/docker/itemory-agent` on Synology. **Create that folder before you start the container** (with your NAS's file manager). Keep this folder safe: it is what you back up, and moving it later makes the app treat the agent as a new server.
 
@@ -119,6 +120,25 @@ Then create the container. Menu names can differ slightly between system version
 
 The first start downloads the image (about 240 MB) from `ghcr.io`. No account or login is needed.
 
+### Check that it started
+
+Before you continue, make sure the container is really running:
+
+- In your NAS's Docker app the container `itemory-agent` shows as **running**. About half a minute after starting, the status changes to **healthy**.
+- Opening `http://<your-NAS-IP>:8787/api/v1/health` in a browser shows a line of text that contains `"status":"ok"`.
+
+On the command line the same checks are:
+
+```bash
+docker ps --filter name=itemory-agent
+```
+
+```bash
+curl http://<your-NAS-IP>:8787/api/v1/health
+```
+
+If the container stops again right away, or the page doesn't open, see [Troubleshooting](troubleshooting.md#the-container-stops-right-after-starting) before going on. The steps below need a running container.
+
 ## Step 5: Create the administrator account
 
 On a computer on the same network, open:
@@ -144,17 +164,24 @@ To pair another iPhone, click **Start pairing** again for a new code.
 A freshly paired agent has no libraries yet. In the app:
 
 1. Open **Itemory Private Cloud Settings → Libraries → Add Folder**.
-2. Pick the folders that contain your photos and videos. They appear under `/volumes/…`, the paths you set up in step 4.
-3. Save. The agent starts indexing immediately.
+2. Pick a folder that contains your photos and videos. The list shows what you mounted in step 4, under `/volumes/…`:
+   - **Use Volume Root** indexes everything in that mount.
+   - The folders listed below it are subfolders in which the agent found photos or videos. Pick one to index only that folder.
+   - A folder that isn't listed can be typed in under **Enter Path Manually**, for example `/volumes/volume1/photo/2024`. Use the path *inside* the container, not the NAS path.
+3. Repeat for every folder you want, then save. The agent starts indexing immediately.
 
-The first scan can take from a few minutes to several hours, depending on how many files you have and how fast the NAS is. Its progress is shown in the app's *Itemory Private Cloud Settings* and on the console's **Overview** page. After that, the agent checks for changes every night at 03:00 and only reads new or modified files.
+The first scan can take from a few minutes to several hours, depending on how many files you have and how fast the NAS is. Its progress is shown in the app's *Itemory Private Cloud Settings* and on the console's **Overview** page. You can already browse in the app while it runs; a day appears once its photos are indexed.
+
+When a scan finishes, the agent prepares thumbnails in the background, newest photos first, up to the **Nightly thumbnail limit** (5,000 with the default preset) per scan. A photo whose thumbnail isn't ready yet still opens normally: its thumbnail is made the moment the app asks for it, which takes a little longer the first time. See [Background thumbnails](configuration.md#background-thumbnails).
+
+After that, the agent checks for changes every night at 03:00 and only reads new or modified files.
 
 ## Step 8: Check that everything works
 
 In the web console:
 
 - **Overview** shows the scan progress and a list of health checks.
-- **Libraries** shows every mounted folder as *Readable* or *Unreadable*. If a folder is unreadable, the **Suggested run user** under *Mounts* tells you which `user:` value would work. Put it in your template, make sure the data folder belongs to that user too, and recreate the container.
+- **Libraries** shows every mounted folder as *Readable* or *Unreadable*. When the agent finds a folder it isn't allowed to read, a **Suggested run user** appears under *Mounts*: it is the owner of that folder, and therefore a `user:` value that can read it. Put it in your template, make sure the data folder belongs to that user too, and recreate the container. No suggestion means every mounted folder is readable. See [A folder shows as Unreadable](troubleshooting.md#a-folder-shows-as-unreadable) for the remaining cases.
 - **Diagnostics → External tools** should show both `vipsthumbnail` (photos) and `ffmpeg` (videos and Live Photos) as available.
 
 Everything green? You're done. Next:

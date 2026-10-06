@@ -51,6 +51,14 @@ type Scanner struct {
 	cancel   context.CancelFunc
 	progMu   sync.RWMutex
 	progress Progress
+
+	onFinished func()
+}
+
+// OnFinished 注册一轮扫描正常结束后的回调（被中止或没能跑起来的扫描不触发）。
+// 手动、计划与首次启动三种扫描都经过 Run，因此收尾工作只需要挂在这一处。必须在第一次扫描前调用。
+func (s *Scanner) OnFinished(fn func()) {
+	s.onFinished = fn
 }
 
 // New builds a scanner.
@@ -261,6 +269,10 @@ func (s *Scanner) Run(ctx context.Context, cancel context.CancelFunc, mode strin
 		"elapsed_s", progress.FinishedAt.Sub(progress.StartedAt).Seconds())
 	s.hub.Broadcast("scan/done", progress)
 	s.hub.Broadcast("library/changed", map[string]any{"removed": removed})
+	if s.onFinished != nil {
+		// 不在这里等回调：Run 返回前扫描槽位还占着，回调若耗时，紧接着的扫描请求会被拒绝。
+		go s.onFinished()
+	}
 	return nil
 }
 
@@ -365,7 +377,7 @@ func (s *Scanner) processDir(job dirJob, settings config.Settings, existing map[
 			// 不必要求用户在 App 里手工点一次「重建索引」。
 			if prev, ok := existing[f.path]; ok &&
 				prev.Size == f.size && prev.Modified == f.modified.Unix() &&
-				prev.ProbeVersion >= media.ProbeVersion &&
+				prev.ProbeVersion >= media.MinProbeVersion(prev.Kind) &&
 				!prev.Removed && prev.ID != "" {
 				touches = append(touches, f.path)
 				s.addReused()

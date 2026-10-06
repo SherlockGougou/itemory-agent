@@ -65,8 +65,9 @@ flowchart LR
   Admin["You, in a web browser"] -- "web console" --> Agent
 ```
 
-- The agent scans the folders you picked, reads capture time, GPS, video length, Live Photo pairs and RAW previews, and stores the results in a small SQLite database in its data folder.
+- The agent scans the folders you picked, reads capture time, GPS, video length and dimensions, Live Photo pairs and RAW previews, and stores the results in a small SQLite database in its data folder.
 - It rescans every night (03:00 by default) and only re-reads files that changed.
+- After each scan it prepares thumbnails in the background, newest photos first, so the app doesn't have to wait for the NAS to decode a photo while you browse.
 - The iPhone gets its own access token when you scan the pairing QR code. The administrator password is only used in the web console and is never shared with the app.
 
 ## License

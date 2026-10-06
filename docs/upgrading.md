@@ -32,6 +32,8 @@ After upgrading, check that:
 - the **Instance ID** is the same as before. If it changed, the container is using a different data folder than before, and the app will treat it as a new server. Fix the `/data` line in your template.
 - **Libraries** still shows your folders as readable.
 
+When a new version reads more information from your files than the old one did (for example the dimensions and creation time of videos), the next scan re-reads the affected files once. This happens by itself during the nightly scan; run **Scan for new items** in the app if you don't want to wait. **Rescan everything** is not needed.
+
 Making a [backup](#back-up) before upgrading is a good habit.
 
 ## Back up

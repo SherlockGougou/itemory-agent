@@ -5,6 +5,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"time"
 )
 
 // maxBoxWalk 是一次探测允许跳过的顶层 box 数量上限。
@@ -203,4 +204,118 @@ func durationSeconds(timescale uint32, duration uint64) float64 {
 		return 0
 	}
 	return seconds
+}
+
+// quickTimeEpochOffset 是 QuickTime 纪元（1904-01-01 UTC）到 Unix 纪元的秒数。
+const quickTimeEpochOffset = 2082844800
+
+// openMoov 打开文件并定位 moov，返回其内容区间。调用方负责关闭文件。
+func openMoov(path string) (*os.File, int64, int64, bool) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, 0, 0, false
+	}
+	info, err := file.Stat()
+	if err != nil {
+		file.Close()
+		return nil, 0, 0, false
+	}
+	payload, length, ok := findBox(file, 0, info.Size(), "moov")
+	if !ok {
+		file.Close()
+		return nil, 0, 0, false
+	}
+	return file, payload, payload + length, true
+}
+
+// VideoCreationTime 读取 moov/mvhd 的创建时间（UTC）。
+//
+// 视频没有 EXIF，iPhone 的 IMG_1234.MOV 文件名里也没有日期；不读这个字段时拍摄时间只能
+// 退到文件修改时间，而文件一经复制、同步或备份工具改写，修改时间就不再是拍摄时间。
+// 未写入该字段的文件值为 0（即 1904 年），由调用方的可信下界过滤掉。
+func VideoCreationTime(path string) (time.Time, bool) {
+	file, start, end, ok := openMoov(path)
+	if !ok {
+		return time.Time{}, false
+	}
+	defer file.Close()
+	payload, _, ok := findBox(file, start, end, "mvhd")
+	if !ok {
+		return time.Time{}, false
+	}
+	body := make([]byte, 12)
+	if read, _ := file.ReadAt(body, payload); read < len(body) {
+		return time.Time{}, false
+	}
+	var created uint64
+	switch body[0] {
+	case 0:
+		created = uint64(binary.BigEndian.Uint32(body[4:8]))
+	case 1:
+		created = binary.BigEndian.Uint64(body[4:12])
+	default:
+		return time.Time{}, false
+	}
+	if created <= quickTimeEpochOffset {
+		return time.Time{}, false
+	}
+	return time.Unix(int64(created-quickTimeEpochOffset), 0).UTC(), true
+}
+
+// VideoTrackSize 读取首个带画面的轨道的尺寸（moov/trak/tkhd），按观看方向返回。
+//
+// 手机竖拍的视频按横向存储，再用 tkhd 的变换矩阵旋转 90° 或 270°；这里据此交换宽高，
+// 否则 App 会按横向比例为竖屏视频排版。音轨的宽高为 0，直接跳过。
+func VideoTrackSize(path string) (int, int) {
+	file, start, end, ok := openMoov(path)
+	if !ok {
+		return 0, 0
+	}
+	defer file.Close()
+
+	offset := start
+	for walked := 0; walked < maxBoxWalk && offset+8 <= end; walked++ {
+		boxSize, boxType, headerLen, ok := readBoxHeader(file, offset, end)
+		if !ok {
+			return 0, 0
+		}
+		if boxType == "trak" {
+			if width, height := trackHeaderSize(file, offset+headerLen, offset+boxSize); width > 0 && height > 0 {
+				return width, height
+			}
+		}
+		offset += boxSize
+	}
+	return 0, 0
+}
+
+// trackHeaderSize 解析一个 trak 里的 tkhd：变换矩阵之后紧跟 16.16 定点数的宽与高。
+func trackHeaderSize(file *os.File, start, end int64) (int, int) {
+	payload, length, ok := findBox(file, start, end, "tkhd")
+	if !ok || length < 84 {
+		return 0, 0
+	}
+	body := make([]byte, 96)
+	read, _ := file.ReadAt(body, payload)
+	if int64(read) > length {
+		read = int(length)
+	}
+	// version 1 的三个时间字段各多 4 字节，矩阵与宽高整体后移 12 字节。
+	matrix := 40
+	if body[0] == 1 {
+		matrix = 52
+	}
+	if read < matrix+44 {
+		return 0, 0
+	}
+	a := int32(binary.BigEndian.Uint32(body[matrix : matrix+4]))
+	b := int32(binary.BigEndian.Uint32(body[matrix+4 : matrix+8]))
+	c := int32(binary.BigEndian.Uint32(body[matrix+12 : matrix+16]))
+	d := int32(binary.BigEndian.Uint32(body[matrix+16 : matrix+20]))
+	width := int(binary.BigEndian.Uint32(body[matrix+36:matrix+40]) >> 16)
+	height := int(binary.BigEndian.Uint32(body[matrix+40:matrix+44]) >> 16)
+	if a == 0 && d == 0 && b != 0 && c != 0 {
+		width, height = height, width
+	}
+	return width, height
 }

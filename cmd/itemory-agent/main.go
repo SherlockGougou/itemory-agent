@@ -119,6 +119,19 @@ func runServe() int {
 	hub := events.NewHub()
 	thumbMgr := thumbs.New(filepath.Join(dataDir, "thumbs"), settings, logger)
 	scanner := scan.New(index, settings, hub, logger)
+	// 每轮扫描结束后在后台补齐缩略图，数量受设置里的「每晚缩略图上限」约束。
+	// App 第一次翻到某一天时缩略图已经在缓存里，不必等 NAS 现场解码。
+	scanner.OnFinished(func() {
+		ids, err := index.VisibleIDs()
+		if err != nil {
+			logger.Warn("thumbnail pre-generation skipped", "error", err)
+			return
+		}
+		thumbMgr.StartPregenerate(ids, func(id string) (store.Entry, bool) {
+			entry, ok, err := index.GetByID(id)
+			return entry, ok && err == nil
+		})
+	})
 
 	tokens, err := api.LoadTokens(dataDir)
 	if err != nil {
@@ -175,6 +188,7 @@ func runServe() int {
 	sig := <-signals
 	logger.Info("shutting down", "signal", sig.String())
 	close(stopSchedule)
+	thumbMgr.StopPregenerate()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

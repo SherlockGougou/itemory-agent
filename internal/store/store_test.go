@@ -827,3 +827,43 @@ func TestAbsorbMotionClipCopies(t *testing.T) {
 		t.Fatalf("absorb must be idempotent: %d %v", again, err)
 	}
 }
+
+// 同内容副本共用一个 id：/motion/{id} 必须解析到带动态片段的那一份，
+// 即使按路径排序时没有片段的副本排在前面。
+func TestGetByIDPrefersTheCopyWithMotion(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "index.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	gen, err := db.BeginScan()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.UpsertMany([]Entry{
+		{Path: "/lib/backup/IMG_1000.HEIC", ID: "same", Kind: "image", Capture: 1700000000, DayKey: "2023-11-14", LastSeen: gen},
+		{Path: "/lib/live/IMG_1000.HEIC", ID: "same", Kind: "motion", Capture: 1700000000, DayKey: "2023-11-14",
+			MotionPath: "/lib/live/IMG_1000.MOV", LastSeen: gen},
+		{Path: "/lib/live/IMG_1000.MOV", ID: "clip", Kind: "motion-clip", Capture: 1700000000, DayKey: "2023-11-14", LastSeen: gen},
+		{Path: "/lib/old/a.jpg", ID: "older", Kind: "image", Capture: 1600000000, DayKey: "2020-09-13", LastSeen: gen},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	entry, ok, err := db.GetByID("same")
+	if err != nil || !ok {
+		t.Fatalf("lookup failed: ok=%v err=%v", ok, err)
+	}
+	if entry.MotionPath == "" {
+		t.Fatalf("resolved the copy without motion: %s", entry.Path)
+	}
+
+	// 可见条目：副本只算一次，动态片段不在其中，新的在前。
+	ids, err := db.VisibleIDs()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(ids, ",") != "same,older" {
+		t.Fatalf("visible ids = %v", ids)
+	}
+}

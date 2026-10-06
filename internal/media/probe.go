@@ -155,7 +155,19 @@ type Result struct {
 // 1：拍摄时间 / 宽高 / Make / Model / 时长（0.3.x）
 // 2：EXIF GPS IFD + 视频 QuickTime ISO6709 位置
 // 3：EXIF 光圈 / 快门 / ISO / 焦距 / 海拔 / 镜头型号，并首次真正消费 Make / Model
-const ProbeVersion = 3
+// 4：视频的画面尺寸（tkhd）与容器创建时间（mvhd）
+const ProbeVersion = 4
+
+// MinProbeVersion 返回某类条目可以直接复用的最低探测版本。
+//
+// 版本 4 只改了视频的探测结果，照片与 RAW 仍按版本 3 复用，
+// 升级后的第一次增量扫描因此只重读视频，不必把整库照片的文件头再读一遍。
+func MinProbeVersion(kind string) int {
+	if kind == KindVideo {
+		return ProbeVersion
+	}
+	return 3
+}
 
 // ProbeFile inspects one media file. It never reads more than the configured
 // head/tail windows, so it is safe to run over 100k+ libraries.
@@ -185,7 +197,11 @@ func ProbeFile(path string, size int64, modified time.Time, opts Options) (*Resu
 	res.ID = contentID(head, size)
 
 	exifInfo, hasEXIF := parseEXIFFromHead(head)
-	if capture, source, ok := detectCaptureTime(exifInfo, hasEXIF, head, path, modified); ok {
+	var containerTime time.Time
+	if kind == KindVideo {
+		containerTime, _ = VideoCreationTime(path)
+	}
+	if capture, source, ok := detectCaptureTime(exifInfo, hasEXIF, head, path, modified, containerTime); ok {
 		res.Capture, res.CaptureSource = capture, source
 	} else {
 		// 没有任何可信时间：保持零值并标记 unknown，由索引层写成「日期未知」而不是 1970-01-01
@@ -243,9 +259,12 @@ func ProbeFile(path string, size int64, modified time.Time, opts Options) (*Resu
 		}
 	}
 
-	// 视频时长与拍摄位置：两者都按 box 跳读，不把 mdat 读进内存。
+	// 视频时长、画面尺寸与拍摄位置：都按 box 跳读，不把 mdat 读进内存。
 	if kind == KindVideo {
 		res.Duration = VideoDuration(path)
+		if res.Width == 0 || res.Height == 0 {
+			res.Width, res.Height = VideoTrackSize(path)
+		}
 		// 视频没有 EXIF，位置写在 QuickTime 的 udta/©xyz（ISO6709 串）里。
 		if res.Latitude == 0 && res.Longitude == 0 {
 			if coordinate := VideoLocation(path); coordinate != nil {
@@ -269,7 +288,11 @@ func contentID(head []byte, size int64) string {
 	return "m" + hex.EncodeToString(h.Sum(nil))[:24]
 }
 
-func detectCaptureTime(exif EXIFInfo, hasEXIF bool, head []byte, path string, modified time.Time) (time.Time, string, bool) {
+// detectCaptureTime 按可信度从高到低取拍摄时间。
+//
+// 文件名排在容器时间之前：VID_20230506_150809.mp4 这类文件名是拍摄地的本地时间，
+// 而部分 Android 机型把本地时间当作 UTC 写进 mvhd，会差出几个小时并落到相邻的一天。
+func detectCaptureTime(exif EXIFInfo, hasEXIF bool, head []byte, path string, modified, container time.Time) (time.Time, string, bool) {
 	if hasEXIF && exif.HasCapture && plausibleCapture(exif.Capture) {
 		return exif.Capture, "exif", true
 	}
@@ -278,6 +301,9 @@ func detectCaptureTime(exif EXIFInfo, hasEXIF bool, head []byte, path string, mo
 	}
 	if t, ok := ParseFilenameDate(filepath.Base(path)); ok && plausibleCapture(t) {
 		return t, "filename", true
+	}
+	if plausibleCapture(container) {
+		return container, "container", true
 	}
 	if plausibleCapture(modified) {
 		return modified, "mtime", true

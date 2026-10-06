@@ -460,9 +460,14 @@ func (s *Store) GetByPath(path string) (Entry, bool, error) {
 	return e, true, nil
 }
 
-// GetByID returns the first non-removed entry with the given content id.
+// GetByID returns one non-removed entry with the given content id.
+//
+// 同内容副本共用一个 id（例如动态照片的静帧在备份目录里另有一份没有配对视频的副本）。
+// 时间线把这个 id 标成动态照片时，/motion/{id} 必须解析到带片段的那一份，
+// 因此带动态片段的行排在前面，其余按路径排序保持结果稳定。
 func (s *Store) GetByID(id string) (Entry, bool, error) {
-	row := s.readDB.QueryRow(`SELECT `+entryColumns+` FROM entries WHERE id=? AND removed=0 ORDER BY path LIMIT 1`, id)
+	row := s.readDB.QueryRow(`SELECT `+entryColumns+` FROM entries WHERE id=? AND removed=0
+		ORDER BY (motion_path <> '' OR motion_length > 0) DESC, path LIMIT 1`, id)
 	e, err := scanEntry(row)
 	if err == sql.ErrNoRows {
 		return Entry{}, false, nil
@@ -885,6 +890,27 @@ func (s *Store) Videos() ([]Entry, error) {
 	}
 	defer rows.Close()
 	return collect(rows)
+}
+
+// VisibleIDs 返回用户可见条目的内容 id，按拍摄时间从新到旧；同内容副本只出现一次。
+// 动态片段不是独立条目，不在其中。
+func (s *Store) VisibleIDs() ([]string, error) {
+	rows, err := s.readDB.Query(`SELECT id FROM entries
+		WHERE removed=0 AND kind <> 'motion-clip' AND id <> ''
+		GROUP BY id ORDER BY MAX(capture) DESC, id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }
 
 // VideosPage returns a bounded video page for the remote Reels stream.

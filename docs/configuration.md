@@ -6,6 +6,7 @@ Most settings are changed from the Itemory app under **Itemory Private Cloud Set
 
 - [Template options](#template-options)
 - [Performance presets](#performance-presets)
+- [Background thumbnails](#background-thumbnails)
 - [Memory limit](#memory-limit)
 - [CPU limit](#cpu-limit)
 - [Settings in the app](#settings-in-the-app)
@@ -22,7 +23,7 @@ Most settings are changed from the Itemory app under **Itemory Private Cloud Set
 | `TZ` | `Asia/Shanghai` | Time zone used to decide which day a photo belongs to. | Yes |
 | `ITEMORY_PRESET` | `balanced` | Initial [performance preset](#performance-presets). Only used on the very first start. | Optional |
 | `mem_limit` | `2g` | Maximum memory. See [Memory limit](#memory-limit). | If you have large videos |
-| `cpus` | `"1.5"` | Maximum CPU cores. See [CPU limit](#cpu-limit). | Optional |
+| `cpus` | `"1.5"` | Maximum CPU cores. See [CPU limit](#cpu-limit). | Optional; must be lowered on a single-core machine |
 | `restart` | `unless-stopped` | Start again after a crash or a NAS reboot. | No |
 | `read_only`, `tmpfs`, `cap_drop`, `security_opt` | enabled | Hardening; see below. | No |
 
@@ -42,13 +43,34 @@ Two more environment variables exist for advanced setups. The image already sets
 
 A preset sets several resource limits at once. Pick the initial one with `ITEMORY_PRESET`; afterwards, change it in the app under **Itemory Private Cloud Settings → Resource Preset**.
 
-| Preset | Parallel jobs | Thumbnail size | Thumbnail cache | Original-file cache | Thumbnails generated per night |
-| --- | --- | --- | --- | --- | --- |
-| `light` | 1 | 256 px | 1 GB | 512 MB | 2,000 |
-| `balanced` (default) | 2 | 512 px | 5 GB | 1 GB | 5,000 |
-| `performance` | 4 | 512 px | 10 GB | 2 GB | 20,000 |
+| Preset | Parallel jobs | Thumbnail size | Thumbnail cache | Nightly thumbnail limit |
+| --- | --- | --- | --- | --- |
+| `light` | 1 | 256 px | 1 GB | 2,000 |
+| `balanced` (default) | 2 | 512 px | 5 GB | 5,000 |
+| `performance` | 4 | 512 px | 10 GB | 20,000 |
 
-Use `light` on small ARM NAS models with little memory, and `performance` on machines with plenty of CPU and disk space.
+Use `light` on small ARM NAS models with little memory, and `performance` on machines with plenty of CPU and disk space. After choosing a preset you can still change each value on its own in the app.
+
+## Background thumbnails
+
+A thumbnail is a small JPEG copy of a photo, or one frame of a video, stored in the data folder under `thumbs/`. The app shows thumbnails while you scroll and only loads the original when you open a photo.
+
+The agent makes thumbnails in two ways:
+
+- **Ahead of time.** Each time a scan finishes (the nightly scan, the first scan after you add a folder, or one you start by hand), the agent goes through the library from the newest photo to the oldest and makes the thumbnails that are still missing.
+- **On request.** If the app asks for a thumbnail that doesn't exist yet, the agent makes it right then. The photo shows up a little later the first time and instantly afterwards.
+
+Three settings in the app limit the work done ahead of time:
+
+| Setting in the app | Effect |
+| --- | --- |
+| **Nightly thumbnail limit** | The most thumbnails made after one scan. A large library is therefore covered over several nights instead of keeping the NAS busy until morning. `0` turns generation ahead of time off; thumbnails are then only made on request. |
+| **Concurrent tasks** | How many files are processed at the same time. |
+| **Private cloud cache limit** | The size of the thumbnail cache. Generation ahead of time stops when the cache is 90% full. When the cache is full, the thumbnails that haven't been used for the longest time are deleted first. |
+
+Roughly, a 512 px thumbnail takes 40–80 KB, so a 5 GB cache holds on the order of 80,000 thumbnails. If your library is larger than that, raise the cache limit, or accept that the oldest photos get their thumbnails on request.
+
+**Clear Cache** in the app deletes all thumbnails and stops generation that is in progress. Nothing else is lost; thumbnails come back on request and after the next scan.
 
 ## Memory limit
 
@@ -69,19 +91,30 @@ A killed job leaves no clear error message, which is why it is best to size the 
 
 ## CPU limit
 
-`cpus` only affects speed, never correctness. The template uses 1.5 cores so that the first full scan doesn't slow down other services on a small NAS. On a fast machine the same batch of thumbnails can take about 16 times longer at 1.5 cores than without a limit. If the first scan is too slow, raise `cpus` temporarily and lower it again once the library is indexed.
+`cpus` only affects speed, never correctness. It can't be higher than the number of CPU cores in the machine: on a single-core NAS, Docker refuses to create the container until you change it to `"1"` or lower. The template uses 1.5 cores so that the first full scan doesn't slow down other services on a small NAS. On a fast machine the same batch of thumbnails can take about 16 times longer at 1.5 cores than without a limit. If the first scan is too slow, raise `cpus` temporarily and lower it again once the library is indexed.
 
 ## Settings in the app
 
 These are changed in the Itemory app under **Itemory Private Cloud Settings** and take effect immediately:
 
-- **Libraries**: which folders are indexed. Saving rebuilds the index for the new scope.
-- **Folders to skip**: folder and file names that are never indexed. System folders such as `@eaDir`, `#recycle`, `#snapshot`, `.Trash` and `$RECYCLE.BIN` are skipped by default.
-- **Resource Preset**, and under **Thumbnails & Cache** the thumbnail size and the cache limit on the NAS.
-- **Nightly automatic scan** (03:00 by default, in the container's time zone).
-- **Log verbosity**, plus **Scan for new items** and **Rescan everything**.
+| Setting | What it does |
+| --- | --- |
+| **Libraries** | Which folders are indexed. Saving starts a scan right away: new folders are added, and removed folders disappear from the app. |
+| **Folders to skip** | Folder and file names that are never indexed. System folders such as `@eaDir`, `#recycle`, `#snapshot`, `.Trash` and `$RECYCLE.BIN` are skipped by default. |
+| **Resource Preset** | Switches all the values of a [performance preset](#performance-presets) at once. |
+| **Thumbnail Quality** | The thumbnail size in pixels. Larger looks sharper on big screens and takes more cache space. Existing thumbnails of the old size stay in the cache until they are pushed out. |
+| **Private cloud cache limit** | The maximum size of the thumbnail cache. Lowering it frees the space immediately. |
+| **Nightly Automatic Scan**, **Scan Time** | Whether and when the daily scan runs (03:00 by default, in the container's time zone). |
+| **Concurrent tasks** | How many files are processed in parallel during scans and thumbnail generation (1–8). |
+| **Nightly thumbnail limit** | See [Background thumbnails](#background-thumbnails). |
+| **Scan for new items** | Looks for new, changed and deleted files now. Unchanged files are not read again. |
+| **Rescan everything** | Reads every file again. Only needed after changing `TZ`, or when asked to in [Troubleshooting](troubleshooting.md). |
+| **Live Photo detection** | Pairs a photo with the video of the same name in the same folder and plays them as a Live Photo. |
+| **Log verbosity**, **Server Log** | How much the agent logs, and the most recent log lines. |
 
-The web console shows status, logs and diagnostics, and manages pairing. Libraries can only be added from the app.
+**Video Transcoding** is reserved for a later version and currently has no effect: the agent sends videos to the app exactly as they are stored.
+
+The web console shows status, logs and diagnostics, manages pairing and paired devices, and can change the preset, thumbnail size, cache limit and scan time. Libraries and folders to skip can only be changed from the app.
 
 ## HTTPS and remote access
 

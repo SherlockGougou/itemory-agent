@@ -17,14 +17,18 @@ import (
 )
 
 type dummySettings struct {
-	thumbSize int
-	limit     int64
+	thumbSize   int
+	limit       int64
+	budget      int
+	concurrency int
 }
 
 func (d dummySettings) Get() config.Settings {
 	return config.Settings{
 		ThumbSize:            d.thumbSize,
 		ThumbCacheLimitBytes: d.limit,
+		NightlyThumbBudget:   d.budget,
+		Concurrency:          d.concurrency,
 	}
 }
 

@@ -953,3 +953,117 @@ func TestProbeWithoutLensKeepsZeroValues(t *testing.T) {
 		t.Fatalf("不应有机型字段: %+v", res)
 	}
 }
+
+// --- 视频画面尺寸（tkhd）与容器创建时间（mvhd）---
+
+// tkhdV0 造一个 version 0 的 tkhd：单位矩阵或旋转 90° 的矩阵，宽高为 16.16 定点数。
+func tkhdV0(width, height uint32, rotated bool) []byte {
+	body := make([]byte, 84)
+	const one = 0x00010000
+	if rotated {
+		binary.BigEndian.PutUint32(body[44:48], one)        // b
+		binary.BigEndian.PutUint32(body[52:56], 0xFFFF0000) // c = -1
+	} else {
+		binary.BigEndian.PutUint32(body[40:44], one) // a
+		binary.BigEndian.PutUint32(body[56:60], one) // d
+	}
+	binary.BigEndian.PutUint32(body[72:76], 0x40000000) // w
+	binary.BigEndian.PutUint32(body[76:80], width<<16)
+	binary.BigEndian.PutUint32(body[80:84], height<<16)
+	return body
+}
+
+// buildVideoWithTrack 造一个带音轨（宽高为 0）与视频轨的 MOV，mvhd 写入给定的创建时间。
+func buildVideoWithTrack(t *testing.T, name string, created time.Time, width, height uint32, rotated bool) string {
+	t.Helper()
+	mvhd := mvhdV0(600, 1200)
+	if !created.IsZero() {
+		binary.BigEndian.PutUint32(mvhd[4:8], uint32(created.Unix()+quickTimeEpochOffset))
+	}
+	moov := mp4Box("moov", bytes.Join([][]byte{
+		mp4Box("mvhd", mvhd),
+		mp4Box("trak", mp4Box("tkhd", tkhdV0(0, 0, false))),
+		mp4Box("trak", mp4Box("tkhd", tkhdV0(width, height, rotated))),
+	}, nil))
+	payload := bytes.Join([][]byte{
+		mp4Box("ftyp", []byte("qt  \x00\x00\x02\x00qt  ")),
+		mp4Box("mdat", bytes.Repeat([]byte{0x11}, 1<<20)),
+		moov,
+	}, nil)
+	path := filepath.Join(t.TempDir(), name)
+	if err := os.WriteFile(path, payload, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestVideoTrackSizeSkipsAudioAndAppliesRotation(t *testing.T) {
+	landscape := buildVideoWithTrack(t, "IMG_0001.MOV", time.Time{}, 1920, 1080, false)
+	if width, height := VideoTrackSize(landscape); width != 1920 || height != 1080 {
+		t.Fatalf("landscape size = %dx%d", width, height)
+	}
+	portrait := buildVideoWithTrack(t, "IMG_0002.MOV", time.Time{}, 1920, 1080, true)
+	if width, height := VideoTrackSize(portrait); width != 1080 || height != 1920 {
+		t.Fatalf("rotated size = %dx%d, want 1080x1920", width, height)
+	}
+	// 没有 trak 的文件与损坏文件都返回 0，由调用方保持「尺寸未知」。
+	if width, height := VideoTrackSize(buildVideo(t, "MOV", false)); width != 0 || height != 0 {
+		t.Fatalf("trackless size = %dx%d", width, height)
+	}
+	broken := filepath.Join(t.TempDir(), "broken.MOV")
+	if err := os.WriteFile(broken, []byte("not-a-movie"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if width, height := VideoTrackSize(broken); width != 0 || height != 0 {
+		t.Fatalf("broken size = %dx%d", width, height)
+	}
+}
+
+func TestProbeVideoUsesContainerTimeInsteadOfFileTime(t *testing.T) {
+	created := time.Date(2023, 5, 6, 7, 8, 9, 0, time.UTC)
+	copiedAt := time.Date(2025, 1, 2, 3, 4, 5, 0, time.UTC)
+
+	path := buildVideoWithTrack(t, "IMG_0001.MOV", created, 1920, 1080, true)
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := ProbeFile(path, info.Size(), copiedAt, Options{})
+	if err != nil {
+		t.Fatalf("probe: %v", err)
+	}
+	if result.CaptureSource != "container" || !result.Capture.Equal(created) {
+		t.Fatalf("capture = %v (%s), want %v (container)", result.Capture, result.CaptureSource, created)
+	}
+	if result.Width != 1080 || result.Height != 1920 {
+		t.Fatalf("size = %dx%d, want 1080x1920", result.Width, result.Height)
+	}
+
+	// 文件名里的本地时间优先于容器时间。
+	named := buildVideoWithTrack(t, "VID_20220304_101112.mp4", created, 1280, 720, false)
+	info, err = os.Stat(named)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err = ProbeFile(named, info.Size(), copiedAt, Options{})
+	if err != nil {
+		t.Fatalf("probe: %v", err)
+	}
+	if result.CaptureSource != "filename" || result.Capture.Year() != 2022 {
+		t.Fatalf("capture = %v (%s), want the filename date", result.Capture, result.CaptureSource)
+	}
+
+	// mvhd 没写创建时间（值为 0，即 1904 年）：退回文件修改时间。
+	unset := buildVideoWithTrack(t, "IMG_0003.MOV", time.Time{}, 1280, 720, false)
+	info, err = os.Stat(unset)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err = ProbeFile(unset, info.Size(), copiedAt, Options{})
+	if err != nil {
+		t.Fatalf("probe: %v", err)
+	}
+	if result.CaptureSource != "mtime" || !result.Capture.Equal(copiedAt) {
+		t.Fatalf("capture = %v (%s), want the file time", result.Capture, result.CaptureSource)
+	}
+}
