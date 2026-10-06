@@ -2,7 +2,7 @@ BINARY := itemory-agent
 PKG := ./cmd/itemory-agent
 WEB_DIR := internal/api/web
 # 版本注入：/api/v1/health 报的版本必须与发布的镜像 tag 一致
-VERSION ?= 0.4.0
+VERSION ?= 0.5.0
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
 .PHONY: build test vet fmt run docker tidy web web-check

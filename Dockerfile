@@ -26,7 +26,7 @@ FROM --platform=$BUILDPLATFORM golang:1.24-bookworm AS build
 ARG TARGETOS
 ARG TARGETARCH
 # 版本随构建注入，确保 /api/v1/health 报的版本与镜像 tag 一致
-ARG VERSION=0.4.0
+ARG VERSION=0.5.0
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
