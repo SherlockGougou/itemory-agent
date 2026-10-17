@@ -7,10 +7,10 @@
 
 Itemory 私有云服务是 iPhone 相册应用 **Itemory** 的可选自建服务。它运行在你自己的私有云设备、NAS 或任何装有 Docker 的电脑上，为选定文件夹里的照片和视频建立索引、提前生成缩略图，再通过家里的局域网提供给 App。
 
-照片不会离开你的 NAS：服务只读取文件，不需要任何云端账号。
+照片不会离开你的 NAS，也不需要任何云端账号。服务默认把你的照片文件夹当作只读的：只建立索引，除非你主动开启删除，否则不会改动它们（见[删除照片](docs/configuration.zh-CN.md#删除照片)）。
 
 > [!TIP]
-> **让 AI Agent 替你部署。** 如果你在用能在 NAS 上执行命令的 AI Agent（例如通过 SSH），复制我们准备好的提示词，填几项信息后发给它。Agent 会检查 NAS 环境、写好 compose 文件、启动容器并验证结果；全程不会改动你的照片，也不会向你索要密码。
+> **让 AI Agent 替你部署。** 如果你在用能在 NAS 上执行命令的 AI Agent（例如通过 SSH），复制我们准备好的提示词，填几项信息后发给它。Agent 会检查 NAS 环境、写好 compose 文件、启动容器并验证结果；按提示词里的规则它不会改动你的照片，也不会向你索要密码。
 >
 > **[→ 获取 AI 部署提示词](docs/deploy-with-ai-agent.zh-CN.md)**
 
@@ -49,7 +49,7 @@ Itemory App 本身就能通过共享文件夹（SMB 或 WebDAV）直接读取私
 | --- | --- |
 | [安装指南](docs/installation.zh-CN.md) | 各 NAS 的分步安装、配对、选择文件夹 |
 | [让 AI Agent 帮你部署](docs/deploy-with-ai-agent.zh-CN.md) | 复制给 AI Agent 的提示词，让它替你完成安装 |
-| [配置说明](docs/configuration.zh-CN.md) | 模板参数、内存与 CPU 上限、性能档位、HTTPS |
+| [配置说明](docs/configuration.zh-CN.md) | 模板参数、内存与 CPU 上限、性能档位、删除照片、HTTPS |
 | [升级与备份](docs/upgrading.zh-CN.md) | 升级、备份、回滚、卸载 |
 | [常见问题](docs/troubleshooting.zh-CN.md) | 常见问题及解决办法 |
 | [安全策略](SECURITY.zh-CN.md) | 访问权限如何划分、如何报告漏洞 |
@@ -59,7 +59,7 @@ Itemory App 本身就能通过共享文件夹（SMB 或 WebDAV）直接读取私
 
 ```mermaid
 flowchart LR
-  Photos["NAS 上的照片文件夹<br/>（只读挂载）"] --> Agent["Itemory 私有云服务容器<br/>索引 · 缩略图 · API"]
+  Photos["NAS 上的照片文件夹<br/>（默认只读挂载）"] --> Agent["Itemory 私有云服务容器<br/>索引 · 缩略图 · API"]
   Agent --> Data[("数据文件夹<br/>索引、设置、缓存")]
   Agent -- "8787 端口的 HTTP API" --> App["iPhone 上的 Itemory App"]
   Admin["你，在浏览器里"] -- "管理网页" --> Agent
@@ -67,6 +67,7 @@ flowchart LR
 
 - 服务扫描你选定的文件夹，读取拍摄时间、GPS、视频时长与画面尺寸、实况照片配对和 RAW 内嵌预览，结果保存在数据文件夹里的一个小型 SQLite 数据库中。
 - 每天夜里（默认 03:00）自动重新扫描，只重新读取有变化的文件。
+- 服务不会自行写入你的照片文件夹。唯一会写入的操作是从 App 里删除照片：它默认关闭，而且必须同时开启删除模式、把文件夹挂载为可写才会真正执行。见[删除照片](docs/configuration.zh-CN.md#删除照片)。
 - 每次扫描结束后，服务在后台从最新的照片开始提前生成缩略图，你在 App 里浏览时不必等 NAS 现场解码。
 - iPhone 扫描配对二维码后获得自己的访问令牌。管理员密码只在管理网页中使用，不会交给 App。
 

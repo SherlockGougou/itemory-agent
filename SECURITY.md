@@ -19,7 +19,7 @@ Only the latest release receives security fixes. The `:1` image tag always point
 - **The iPhone app** uses a device token that it receives when it scans a pairing QR code. Pairing codes are single-use, expire after 5 minutes and are rate-limited. Device tokens can be revoked at any time under **Pairing & devices**.
 - **The web console** uses an administrator account. The password is stored only as a PBKDF2-HMAC-SHA256 hash, and a signed-in session is kept in an HttpOnly cookie. Opening the pairing window and viewing or revoking paired devices require this session. Scans and settings can be managed either from the console or from a paired app.
 - The two credentials are separate: the app never receives the administrator password, and a device token can't be used to sign in to the console.
-- Photo folders are mounted read-only. The agent only writes to its data folder, runs as a non-root user, and the templates drop all Linux capabilities.
+- Photo folders are mounted read-only in every template. The agent only writes to its data folder, runs as a non-root user, and the templates drop all Linux capabilities. Deleting photos is off by default; it needs a writable mount **and** `deleteMode` set explicitly, and is refused otherwise (see [Deleting photos](docs/configuration.md#deleting-photos)).
 
 ## Recommendations
 

@@ -28,6 +28,7 @@ Start with the web console: **Overview** runs a set of health checks, and **Logs
 - [Photos appear on the wrong day](#photos-appear-on-the-wrong-day)
 - [Videos appear on the wrong day](#videos-appear-on-the-wrong-day)
 - [Live Photos play as still photos](#live-photos-play-as-still-photos)
+- [Deleting a photo is refused](#deleting-a-photo-is-refused)
 - [Files in the data folder look unreadable on the NAS](#files-in-the-data-folder-look-unreadable-on-the-nas)
 
 [Still stuck?](#still-stuck)
@@ -158,6 +159,20 @@ The agent recognises a Live Photo when the photo and its video are **in the same
 - **Live Photo detection** is turned on in the app's *Itemory Private Cloud Settings*.
 
 After fixing the files, run **Scan for new items** in the app.
+
+## Deleting a photo is refused
+
+Deleting needs two switches, and the error tells you which one is missing:
+
+| Error | Fix |
+| --- | --- |
+| `403 delete_disabled` | `deleteMode` is `off`. Set it to `trash` or `permanent` as shown in [Deleting photos](configuration.md#deleting-photos). |
+| `403 read_only_mount` | The photo folder (or the `.itemory-trash` folder inside it) is not writable. Drop the `:ro` suffix from that volume line and recreate the container. |
+| `500 delete_failed` | A write failed for a different reason. Read the message: it names the path. Check that the subfolder holding the file is writable by the run user. Nothing was deleted. |
+| `403 outside_library` | The indexed path no longer belongs to a configured library. Re-add the folder, or run a scan so the index catches up. |
+| `404 not_found` | The entry is already gone. Refresh the list in the app. |
+
+If the app shows no delete option at all, the running service is not reporting the `delete` capability, which means `deleteMode` is still `off` or the app is talking to an older server. See [Deleting photos](configuration.md#deleting-photos).
 
 ## Files in the data folder look unreadable on the NAS
 

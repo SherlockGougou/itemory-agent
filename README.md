@@ -7,7 +7,9 @@
 
 Itemory Private Cloud is an optional self-hosted service for the **Itemory** photo app on iPhone. You run it on your own private cloud device, NAS, or any computer with Docker. It indexes the photos and videos in the folders you choose, prepares thumbnails ahead of time, and serves them to the app over your home network.
 
-Your photos never leave your NAS: the agent only reads them, and there is no cloud account involved.
+Your photos never leave your NAS, and there is no cloud account involved. The agent treats your photo
+folders as read-only by default: it indexes them and never changes them unless you enable deleting
+(see [Deleting photos](docs/configuration.md#deleting-photos)).
 
 > [!TIP]
 > **Let an AI agent deploy it for you.** If you use an AI agent that can run commands on your NAS (for example over SSH), copy our ready-made prompt, fill in a few details and send it. The agent checks your NAS, writes the compose file, starts the container and verifies it, while leaving your photos untouched and never asking for your passwords.
@@ -49,7 +51,7 @@ Prefer to hand the setup to an AI agent? See [Deploy with an AI agent](docs/depl
 | --- | --- |
 | [Installation](docs/installation.md) | Step-by-step setup for each NAS, pairing, choosing folders |
 | [Deploy with an AI agent](docs/deploy-with-ai-agent.md) | A prompt to copy into your AI agent so it installs the agent for you |
-| [Configuration](docs/configuration.md) | Template options, memory and CPU limits, performance presets, HTTPS |
+| [Configuration](docs/configuration.md) | Template options, memory and CPU limits, performance presets, deleting photos, HTTPS |
 | [Upgrading and backup](docs/upgrading.md) | Updating, backing up, rolling back, uninstalling |
 | [Troubleshooting](docs/troubleshooting.md) | Common problems and how to fix them |
 | [Security policy](SECURITY.md) | How access works, how to report a vulnerability |
@@ -59,7 +61,7 @@ Prefer to hand the setup to an AI agent? See [Deploy with an AI agent](docs/depl
 
 ```mermaid
 flowchart LR
-  Photos["Photo folders on your NAS<br/>(mounted read-only)"] --> Agent["Itemory Private Cloud container<br/>index · thumbnails · API"]
+  Photos["Photo folders on your NAS<br/>(read-only by default)"] --> Agent["Itemory Private Cloud container<br/>index · thumbnails · API"]
   Agent --> Data[("Data folder<br/>index, settings, cache")]
   Agent -- "HTTP API on port 8787" --> App["Itemory app on iPhone"]
   Admin["You, in a web browser"] -- "web console" --> Agent
@@ -67,6 +69,7 @@ flowchart LR
 
 - The agent scans the folders you picked, reads capture time, GPS, video length and dimensions, Live Photo pairs and RAW previews, and stores the results in a small SQLite database in its data folder.
 - It rescans every night (03:00 by default) and only re-reads files that changed.
+- It never writes to your photo folders on its own. Deleting a photo from the app is the only write, it is off by default, and it only works when you have enabled it **and** mounted the folder writable. See [Deleting photos](docs/configuration.md#deleting-photos).
 - After each scan it prepares thumbnails in the background, newest photos first, so the app doesn't have to wait for the NAS to decode a photo while you browse.
 - The iPhone gets its own access token when you scan the pairing QR code. The administrator password is only used in the web console and is never shared with the app.
 

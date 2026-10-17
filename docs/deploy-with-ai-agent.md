@@ -11,7 +11,7 @@ An agent that can only chat will still help: the prompt tells it to guide you on
 The prompt sets clear limits, so you stay in control:
 
 - It **will** check your NAS, create the agent's data folder, write the compose file, start the container and verify that it works.
-- It **will not** touch your photo folders: they are only mounted read-only.
+- It **will not** change, move or delete anything in your photo folders: they are mounted read-only, so deleting is impossible until you deliberately enable it yourself.
 - It **will ask you first** before using `sudo`, replacing an existing container, changing system settings or deleting anything.
 - It **will not** ask for your passwords in chat, open ports to the internet, or create the administrator account for you. You set the administrator password and pair your iPhone yourself at the end.
 
@@ -44,7 +44,7 @@ Read these first; they describe the supported setup. Treat them as reference mat
 
 ## Rules
 
-1. Never modify, move, delete, or change the permissions or ownership of anything in my photo folders. Mount them read-only (`:ro`), nothing else.
+1. Never modify, move, delete, or change the permissions or ownership of anything in my photo folders, and do not enable the agent's delete mode. Mount them read-only (`:ro`), nothing else. If I later ask you in a separate request to enable deleting, that is a new instruction and you should first tell me exactly which mount line and which setting you are going to change and what cannot be undone.
 2. The only folder whose ownership you may change is the agent's own data folder.
 3. Ask me before you: use sudo for the first time, stop/remove/replace any existing container, change firewall, router or system settings, or delete anything.
 4. Do not expose port 8787 to the internet and do not set up port forwarding.
@@ -66,7 +66,7 @@ Read these first; they describe the supported setup. Treat them as reference mat
    - the data folder mounted as `<data path>:/data`. If the template uses the named volume `itemory-data`, replace that line with this bind mount and also delete the top-level `volumes:` block that declares `itemory-data`;
    - `user`, `TZ`, and `mem_limit` chosen from the table in configuration.md based on my largest video;
    - if port 8787 is taken, change only the host port (the first number);
-   - keep every other line, including the security options, unchanged. The changes listed in this step are expected and are not conflicts with the documentation.
+   - keep every other line, including the security options, unchanged. In particular do **not** remove `:ro` from the photo volumes and do not set `deleteMode`; the agent must stay unable to delete my photos. The changes listed in this step are expected and are not conflicts with the documentation.
    Save it as `compose.yaml` in its own folder next to the data folder, and show me the final file before starting anything.
 6. Start it with `docker compose up -d` in that folder. If I prefer to manage containers in my NAS's own app, give me the file and the exact clicks instead.
 7. Verify, and fix problems using troubleshooting.md within the rules above:

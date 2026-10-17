@@ -9,6 +9,7 @@ Most settings are changed from the Itemory app under **Itemory Private Cloud Set
 - [Background thumbnails](#background-thumbnails)
 - [Memory limit](#memory-limit)
 - [CPU limit](#cpu-limit)
+- [Deleting photos](#deleting-photos)
 - [Settings in the app](#settings-in-the-app)
 - [HTTPS and remote access](#https-and-remote-access)
 
@@ -18,7 +19,7 @@ Most settings are changed from the Itemory app under **Itemory Private Cloud Set
 | --- | --- | --- | --- |
 | `image` | `ghcr.io/sherlockgougou/itemory-agent:1` | The image to run. `:1` always points to the latest release; use a version such as `:0.4.0` to pin one. | Only to pin a version |
 | `user` | `"1000:1000"` | The user ID and group ID the agent runs as. See [installation step 3](installation.md#step-3-pick-the-run-user). | If folders are unreadable |
-| `volumes` | varies | Photo folders (read-only, under `/volumes/…`) and the data folder (`/data`). | Yes, always |
+| `volumes` | varies | Photo folders (read-only, under `/volumes/…`) and the data folder (`/data`). See [Deleting photos](#deleting-photos) before removing `:ro`. | Yes, always |
 | `ports` | `"8787:8787"` | `NAS port:container port`. | If 8787 is taken; change the first number |
 | `TZ` | `Asia/Shanghai` | Time zone used to decide which day a photo belongs to. | Yes |
 | `ITEMORY_PRESET` | `balanced` | Initial [performance preset](#performance-presets). Only used on the very first start. | Optional |
@@ -35,7 +36,7 @@ The hardening options are safe to keep. The agent is designed to run with them:
 | `tmpfs: /tmp` | Scratch space for image decoding. Raise it to `256m` if you have many HEIC or RAW files. |
 | `cap_drop: [ALL]` | Removes all special Linux privileges. |
 | `no-new-privileges` | Processes inside cannot gain more privileges. |
-| `:ro` on photo folders | The agent cannot modify or delete your photos. |
+| `:ro` on photo folders | The agent cannot write to, move or delete your photos. This is the default and the main protection; see [Deleting photos](#deleting-photos). |
 
 Two more environment variables exist for advanced setups. The image already sets them, so leave them alone unless you know why you need them: `ITEMORY_CACHE_DIR` (data folder, `/data`) and `ITEMORY_HTTP_ADDR` (listen address, `:8787`).
 
@@ -93,6 +94,49 @@ A killed job leaves no clear error message, which is why it is best to size the 
 
 `cpus` only affects speed, never correctness. It can't be higher than the number of CPU cores in the machine: on a single-core NAS, Docker refuses to create the container until you change it to `"1"` or lower. The template uses 1.5 cores so that the first full scan doesn't slow down other services on a small NAS. On a fast machine the same batch of thumbnails can take about 16 times longer at 1.5 cores than without a limit. If the first scan is too slow, raise `cpus` temporarily and lower it again once the library is indexed.
 
+## Deleting photos
+
+Deleting is **off by default**. The agent never removes a file unless you turn it on deliberately, and two independent things have to be true at the same time:
+
+1. **The photo folder must be mounted writable.** Every template mounts photo folders with `:ro` (read-only). Drop that suffix from the volume line, for example `/volume1:/volumes/volume1` instead of `/volume1:/volumes/volume1:ro`, and recreate the container.
+2. **`deleteMode` must be `trash` or `permanent`.** It lives in the agent's settings (`/data/settings.json`, key `deleteMode`) and defaults to `off`. Set it through the settings API, for example:
+
+```bash
+curl -X PATCH http://<your-NAS-IP>:8787/api/v1/settings \
+  -H "Authorization: Bearer <device token>" \
+  -H "Content-Type: application/json" \
+  -d '{"deleteMode":"trash"}'
+```
+
+If either one is missing, deleting is refused: the folder stays read-only, or the request fails with `403 delete_disabled`. The app only shows a delete entry point when the running service reports the `delete` capability, which it does only while `deleteMode` is not `off`. Deleting is all-or-nothing per file: either the file is moved or removed, or nothing changes and you get an error naming the path.
+
+| `deleteMode` | What a delete does |
+| --- | --- |
+| `off` (default) | Deleting is refused with `403 delete_disabled`. The agent only reads. |
+| `trash` | The file is moved into `<library root>/.itemory-trash/`, keeping its subfolders, with a timestamp prefix on the file name so an older file is never overwritten. |
+| `permanent` | The file is deleted from disk. This cannot be undone. |
+
+With `trash`, the original path is gone from the library immediately, and the file waits under the library root:
+
+```text
+/volume1/photos/2024/IMG_0001.jpg   →   /volume1/photos/.itemory-trash/2024/20260117T101500.123456789_IMG_0001.jpg
+```
+
+`.itemory-trash` starts with a dot, so scans skip it and the moved files never show up in the app again. To restore a file, move it back out of `.itemory-trash` to where it belongs and run a scan; to reclaim the space, delete the `.itemory-trash` folder yourself.
+
+Deleting is refused with these errors:
+
+| Response | Meaning |
+| --- | --- |
+| `403 delete_disabled` | `deleteMode` is `off`. |
+| `403 read_only_mount` | The library or the trash folder it needs is not writable — typically the photo folder is mounted read-only (`:ro`). Drop `:ro` and recreate the container. |
+| `500 delete_failed` | A write failed for another reason, for example the library is writable but the subfolder holding the file is not. The error message names the path. The file is left in place. |
+| `403 outside_library` | The indexed path is no longer inside a configured library. |
+| `404 not_found` | No live entry with that id. |
+
+> [!IMPORTANT]
+> Deleting is the only operation in which the agent writes inside your photo folders, and it only works when both switches are on. Turning `deleteMode` back to `off` and restoring `:ro` returns the agent to read-only behaviour; it does not undo files that were already deleted.
+
 ## Settings in the app
 
 These are changed in the Itemory app under **Itemory Private Cloud Settings** and take effect immediately:
@@ -115,6 +159,8 @@ These are changed in the Itemory app under **Itemory Private Cloud Settings** an
 **Video Transcoding** is reserved for a later version and currently has no effect: the agent sends videos to the app exactly as they are stored.
 
 The web console shows status, logs and diagnostics, manages pairing and paired devices, and can change the preset, thumbnail size, cache limit and scan time. Libraries and folders to skip can only be changed from the app.
+
+`deleteMode` is not in this list yet: neither the console nor the app has a control for it in this release. Set it with the `PATCH` request shown under [Deleting photos](#deleting-photos), and leave it `off` if you are not sure.
 
 ## HTTPS and remote access
 

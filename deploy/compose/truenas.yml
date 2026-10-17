@@ -2,6 +2,12 @@
 # Apps -> Discover Apps -> Custom App -> install from YAML -> paste this file.
 # TrueNAS uses ACLs: if folders are unreadable, adjust `user` or the dataset ACL.
 # Guide: https://github.com/SherlockGougou/itemory-agent/blob/main/docs/installation.md
+#
+# Deleting photos is OFF by default. Two things must both change before the agent
+# can remove a file: this photo volume must be mounted writable (drop the ":ro"
+# suffix on the line below), and deleteMode must be set to "trash" or "permanent".
+# Deleting is irreversible; "trash" only moves the file to <library>/.itemory-trash.
+# See docs/configuration.md#deleting-photos. Keep ":ro" if you don't need it.
 services:
   itemory-agent:
     image: ghcr.io/sherlockgougou/itemory-agent:1
@@ -13,7 +19,7 @@ services:
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     volumes:
-      - /mnt:/volumes/mnt:ro                     # photos, read-only; pick folders in the app
+      - /mnt:/volumes/mnt:ro                     # photos, read-only; drop ":ro" to allow deleting
       - /mnt/apps/itemory-agent:/data            # index, settings, pairing, thumbnails
     ports:
       - "8787:8787"                      # change only the first number if 8787 is taken

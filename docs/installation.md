@@ -46,7 +46,7 @@ You have two options:
 - **Mount the whole volume** (what most templates do, for example `/volume1`). Later you pick the exact folders in the app. This is the easiest if your photos are spread across several folders.
 - **Mount only your photo folder** (for example `/volume1/photo`). The agent then can't see anything else on the NAS.
 
-Either way the mount is **read-only**: the agent can never change or delete your photos.
+Either way the mount is **read-only** by default, so the agent cannot change or delete your photos. Deleting has to be turned on deliberately and needs a writable mount as well — see [Deleting photos](configuration.md#deleting-photos) if you want it. Leave the mount as it is if you are not sure.
 
 ## Step 2: Pick a data folder
 
@@ -96,6 +96,7 @@ Here is what the important lines mean:
     user: "1000:1000"                         # step 3: who the agent runs as
     volumes:
       - /volume1:/volumes/volume1:ro          # NAS path : path inside the container : read-only
+                                             # drop ":ro" only if you want to delete photos from the app
       - /volume1/docker/itemory-agent:/data   # data folder from step 2
     ports:
       - "8787:8787"                           # NAS port : container port

@@ -81,4 +81,4 @@ then recreate the container. A newer version may have upgraded the index, so res
 2. On the NAS, stop and delete the container or project.
 3. Delete the data folder (or, for `generic.yml`, the Docker named volume) if you don't want to keep the index.
 
-Your photos are never touched: they were mounted read-only the whole time.
+Your photos are not touched by the uninstall steps: removing the container and the data folder does not delete them. Files you deleted from the app earlier are the only exception, and a `trash` delete left them in `.itemory-trash` under the library root, where they are still yours to keep or remove.
