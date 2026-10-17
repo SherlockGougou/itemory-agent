@@ -81,3 +81,66 @@ func TestLoadCreatesAndUpdatesFile(t *testing.T) {
 		t.Fatalf("settings not persisted: %+v", got)
 	}
 }
+
+// 删除模式必须默认关闭并拒绝未知取值：拼错的配置不能变成「默认允许删除」。
+func TestDeleteModeDefaultsToOffAndRejectsUnknownValues(t *testing.T) {
+	if def := Defaults(); def.DeleteMode != DeleteModeOff {
+		t.Fatalf("defaults must disable deletion, got %q", def.DeleteMode)
+	}
+
+	// 老版本 settings.json 没有 deleteMode 键：反序列化后是空串，必须归到 off。
+	normalized, err := Validate(Settings{})
+	if err != nil {
+		t.Fatalf("validate: %v", err)
+	}
+	if normalized.DeleteMode != DeleteModeOff {
+		t.Fatalf("empty deleteMode must normalize to off, got %q", normalized.DeleteMode)
+	}
+	for _, bogus := range []string{"yes", "ON", "true", "remove", "Trash"} {
+		in := Defaults()
+		in.DeleteMode = bogus
+		out, err := Validate(in)
+		if err != nil {
+			t.Fatalf("validate %q: %v", bogus, err)
+		}
+		if out.DeleteMode != DeleteModeOff {
+			t.Fatalf("deleteMode %q must fall back to off, got %q", bogus, out.DeleteMode)
+		}
+	}
+	for _, allowed := range []string{DeleteModeTrash, DeleteModePermanent} {
+		in := Defaults()
+		in.DeleteMode = allowed
+		out, err := Validate(in)
+		if err != nil {
+			t.Fatalf("validate %q: %v", allowed, err)
+		}
+		if out.DeleteMode != allowed {
+			t.Fatalf("deleteMode %q must be preserved, got %q", allowed, out.DeleteMode)
+		}
+	}
+}
+
+// 关闭删除是升级带来的行为变化：必须确认它会被持久化并在重新加载后保持。
+func TestDeleteModeRoundTripsThroughSettingsFile(t *testing.T) {
+	dir := t.TempDir()
+	manager, err := Load(dir)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if got := manager.Get().DeleteMode; got != DeleteModeOff {
+		t.Fatalf("fresh settings must disable deletion, got %q", got)
+	}
+
+	next := manager.Get()
+	next.DeleteMode = DeleteModeTrash
+	if err := manager.Update(next); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	reloaded, err := Load(dir)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if got := reloaded.Get().DeleteMode; got != DeleteModeTrash {
+		t.Fatalf("deleteMode not persisted: %q", got)
+	}
+}

@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -849,5 +850,490 @@ func writeTestJPEG(t *testing.T, path string) {
 	}
 	if err := os.WriteFile(path, buf.Bytes(), 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// newDeleteTestServer 搭一个删除接口用的最小服务：一个真实库目录、一个真实索引、
+// 真实缩略图缓存与事件 hub，不 mock 任何生产逻辑。
+func newDeleteTestServer(t *testing.T, deleteMode string) (*Server, *store.Store, *thumbs.Manager, *events.Hub, *httptest.Server, string, string) {
+	t.Helper()
+	library := t.TempDir()
+	dataDir := t.TempDir()
+	index, err := store.Open(filepath.Join(dataDir, "index.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { index.Close() })
+
+	settings, err := config.Load(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := settings.Get()
+	current.Libraries = []config.Library{{ID: "lib", Name: "lib", Path: library}}
+	current.DeleteMode = deleteMode
+	current.LogLevel = "error"
+	if err := settings.Update(current); err != nil {
+		t.Fatal(err)
+	}
+
+	log := logging.New("error", logging.NewRing(50))
+	hub := events.NewHub()
+	thumbMgr := thumbs.New(filepath.Join(dataDir, "thumbs"), settings, log)
+	scanner := scan.New(index, settings, hub, log)
+	tokens, err := LoadTokens(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tokens.SetClaim("135790", 15*time.Minute)
+	server := NewServer(Deps{
+		Version: "test", APIVersion: 1, DataDir: dataDir, Index: index, Settings: settings,
+		Thumbs: thumbMgr, Scanner: scanner, Hub: hub, Tokens: tokens, Logger: log,
+		LogRing: logging.NewRing(10), StartedAt: time.Now(),
+	})
+	httpServer := httptest.NewServer(server.Handler())
+	t.Cleanup(httpServer.Close)
+	return server, index, thumbMgr, hub, httpServer, library, pairDevice(t, httpServer.URL, "135790")
+}
+
+// indexTestEntry 把一个真实存在的文件登记进索引，返回它的内容 id。
+func indexTestEntry(t *testing.T, index *store.Store, path, id, kind, dayKey string, extra store.Entry) {
+	t.Helper()
+	gen, err := index.BeginScan()
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry := extra
+	entry.Path = path
+	entry.ID = id
+	entry.Kind = kind
+	entry.Name = filepath.Base(path)
+	entry.DayKey = dayKey
+	entry.Capture = 1_709_251_200
+	entry.LastSeen = gen
+	if err := index.UpsertMany([]store.Entry{entry}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := index.FinishScan(gen); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// deleteRequest 发一次删除请求并返回状态码与错误码。
+func deleteRequest(t *testing.T, url, bearer string) (int, string) {
+	t.Helper()
+	request, _ := http.NewRequest(http.MethodDelete, url, nil)
+	if bearer != "" {
+		request.Header.Set("Authorization", bearer)
+	}
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	var buf bytes.Buffer
+	_, _ = buf.ReadFrom(response.Body)
+	var payload struct {
+		Error string `json:"error"`
+	}
+	_ = json.Unmarshal(buf.Bytes(), &payload)
+	return response.StatusCode, payload.Error
+}
+
+// 删除成功：文件离开原位置、索引里立刻消失、缩略图缓存被清、事件按扫描的形状广播。
+func TestDeleteItemPermanentSuccess(t *testing.T) {
+	_, index, thumbMgr, hub, httpServer, library, bearer := newDeleteTestServer(t, config.DeleteModePermanent)
+	eventsCh := hub.Subscribe()
+	defer hub.Unsubscribe(eventsCh)
+
+	photo := filepath.Join(library, "IMG_20240102_030405.jpg")
+	writeTestJPEG(t, photo)
+	indexTestEntry(t, index, photo, "permanent1", "image", "2024-01-02", store.Entry{})
+
+	// 先让缩略图真的生成到缓存里，才能验证删除会把缓存清干净。
+	if _, err := thumbMgr.Ensure(store.Entry{ID: "permanent1", Kind: "image", Path: photo}, 256); err != nil {
+		t.Fatalf("prepare thumbnail: %v", err)
+	}
+	cacheFile := thumbMgr.CachePath("permanent1", 256)
+	if _, err := os.Stat(cacheFile); err != nil {
+		t.Fatalf("thumbnail not cached before delete: %v", err)
+	}
+
+	code, errCode := deleteRequest(t, httpServer.URL+"/api/v1/items/permanent1", bearer)
+	if code != http.StatusOK || errCode != "" {
+		t.Fatalf("delete status %d (%s)", code, errCode)
+	}
+	if _, err := os.Stat(photo); !os.IsNotExist(err) {
+		t.Fatalf("file still on disk after permanent delete: %v", err)
+	}
+	if _, err := os.Stat(cacheFile); !os.IsNotExist(err) {
+		t.Fatalf("thumbnail cache survived delete: %v", err)
+	}
+	if _, ok, _ := index.GetByID("permanent1"); ok {
+		t.Fatal("entry still visible after delete")
+	}
+	// 原图接口不能还能读出已删除的条目。
+	if code := get(t, httpServer.URL+"/api/v1/originals/permanent1", bearer); code != http.StatusNotFound {
+		t.Fatalf("original must be gone, got %d", code)
+	}
+
+	// 事件形状与 scanner.go 的 library/changed{removed} 一致，客户端按同一条事件刷新。
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		select {
+		case event := <-eventsCh:
+			if event.Kind != "library/changed" {
+				continue
+			}
+			payload, ok := event.Data.(map[string]any)
+			if !ok {
+				t.Fatalf("unexpected event payload: %+v", event.Data)
+			}
+			if _, present := payload["removed"]; !present {
+				t.Fatalf("library/changed must carry removed count: %+v", payload)
+			}
+			return
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	t.Fatal("no library/changed event after delete")
+}
+
+// 移动删除：文件进 <库根>/.itemory-trash 并保留目录结构，回收站里的文件不会被重新索引。
+func TestDeleteItemMoveToTrashPreservesStructure(t *testing.T) {
+	_, index, _, _, httpServer, library, bearer := newDeleteTestServer(t, config.DeleteModeTrash)
+	nested := filepath.Join(library, "2024", "01")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	photo := filepath.Join(nested, "IMG_0001.jpg")
+	writeTestJPEG(t, photo)
+	indexTestEntry(t, index, photo, "trash1", "image", "2024-01-02", store.Entry{})
+
+	code, errCode := deleteRequest(t, httpServer.URL+"/api/v1/items/trash1", bearer)
+	if code != http.StatusOK || errCode != "" {
+		t.Fatalf("trash status %d (%s)", code, errCode)
+	}
+	if _, err := os.Stat(photo); !os.IsNotExist(err) {
+		t.Fatalf("file still at its original path: %v", err)
+	}
+	trashRoot := filepath.Join(library, trashDirName, "2024", "01")
+	entries, err := os.ReadDir(trashRoot)
+	if err != nil {
+		t.Fatalf("trash directory missing: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected the file inside the trash directory, got %d entries", len(entries))
+	}
+	name := entries[0].Name()
+	if !strings.HasSuffix(name, "_IMG_0001.jpg") {
+		t.Fatalf("trashed file must keep its name with a timestamp prefix: %s", name)
+	}
+	if _, ok, _ := index.GetByID("trash1"); ok {
+		t.Fatal("entry still visible after trashing")
+	}
+	// 同名文件再次删除不能覆盖回收站里已有的那一份。
+	writeTestJPEG(t, photo)
+	indexTestEntry(t, index, photo, "trash2", "image", "2024-01-02", store.Entry{})
+	if code, errCode := deleteRequest(t, httpServer.URL+"/api/v1/items/trash2", bearer); code != http.StatusOK {
+		t.Fatalf("second trash status %d (%s)", code, errCode)
+	}
+	entries, err = os.ReadDir(trashRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("trash must not overwrite an earlier file: %d entries", len(entries))
+	}
+}
+
+// 删除模式为 off：接口 403，能力位不下发，而且绝不碰文件。
+func TestDeleteItemDisabledBySettings(t *testing.T) {
+	server, index, _, _, httpServer, library, bearer := newDeleteTestServer(t, config.DeleteModeOff)
+	photo := filepath.Join(library, "keep.jpg")
+	writeTestJPEG(t, photo)
+	indexTestEntry(t, index, photo, "off1", "image", "2024-01-02", store.Entry{})
+
+	// 能力位必须与接口实际行为一致：关掉之后客户端不该显示删除入口。
+	_, data := getBody(t, httpServer.URL+"/api/v1/health", "")
+	var health struct {
+		Capabilities []string `json:"capabilities"`
+	}
+	if err := json.Unmarshal(data, &health); err != nil {
+		t.Fatal(err)
+	}
+	if contains(health.Capabilities, "delete") {
+		t.Fatalf("delete capability must not be advertised when deleteMode=off: %v", health.Capabilities)
+	}
+
+	code, errCode := deleteRequest(t, httpServer.URL+"/api/v1/items/off1", bearer)
+	if code != http.StatusForbidden || errCode != errCodeDeleteDisabled {
+		t.Fatalf("expected 403 %s, got %d %s", errCodeDeleteDisabled, code, errCode)
+	}
+	if _, err := os.Stat(photo); err != nil {
+		t.Fatalf("file must survive a rejected delete: %v", err)
+	}
+	if _, ok, _ := index.GetByID("off1"); !ok {
+		t.Fatal("index must be untouched when delete is disabled")
+	}
+
+	// 打开删除后同名接口立即可用，且能力位随之出现。
+	current := server.d.Settings.Get()
+	current.DeleteMode = config.DeleteModePermanent
+	if err := server.d.Settings.Update(current); err != nil {
+		t.Fatal(err)
+	}
+	_, data = getBody(t, httpServer.URL+"/api/v1/health", "")
+	health.Capabilities = nil
+	if err := json.Unmarshal(data, &health); err != nil {
+		t.Fatal(err)
+	}
+	if !contains(health.Capabilities, "delete") {
+		t.Fatalf("delete capability missing after enabling: %v", health.Capabilities)
+	}
+	if code, errCode := deleteRequest(t, httpServer.URL+"/api/v1/items/off1", bearer); code != http.StatusOK {
+		t.Fatalf("delete after enabling failed: %d %s", code, errCode)
+	}
+}
+
+// 未知 id 必须 404，且错误码与读接口一致。
+func TestDeleteItemUnknownIDReturnsNotFound(t *testing.T) {
+	_, _, _, _, httpServer, _, bearer := newDeleteTestServer(t, config.DeleteModePermanent)
+	code, errCode := deleteRequest(t, httpServer.URL+"/api/v1/items/missing-id", bearer)
+	if code != http.StatusNotFound || errCode != errCodeNotFound {
+		t.Fatalf("expected 404 %s, got %d %s", errCodeNotFound, code, errCode)
+	}
+}
+
+// 索引里残留的条目若路径已经不在任何媒体库内（库被移除 / 规则改过），删除必须拒绝：
+// 这是路径越界的拒绝分支，判据来自已经存在的 withinLibraries，不另写一套。
+func TestDeleteItemOutsideLibraryIsRejected(t *testing.T) {
+	server, index, _, _, httpServer, library, bearer := newDeleteTestServer(t, config.DeleteModePermanent)
+
+	// 条目在库外，但仍被索引记着：取 settings 的当前库列表之后把库换掉，
+	// 模拟「媒体库配置改了，索引里还留着旧路径」。
+	outside := t.TempDir()
+	photo := filepath.Join(outside, "outside.jpg")
+	writeTestJPEG(t, photo)
+	indexTestEntry(t, index, photo, "outside1", "image", "2024-01-02", store.Entry{})
+
+	// 顺手确认这条路径确实不在当前库内，用例本身不依赖假设。
+	current := server.d.Settings.Get()
+	if withinLibraries(filepath.Clean(photo), current.Libraries) {
+		t.Fatalf("test fixture error: %s is inside the library", photo)
+	}
+
+	code, errCode := deleteRequest(t, httpServer.URL+"/api/v1/items/outside1", bearer)
+	if code != http.StatusForbidden || errCode != errCodeOutsideLibrary {
+		t.Fatalf("expected 403 %s, got %d %s", errCodeOutsideLibrary, code, errCode)
+	}
+	if _, err := os.Stat(photo); err != nil {
+		t.Fatalf("file outside the library must not be touched: %v", err)
+	}
+	_ = library
+}
+
+// 符号链接指向库外：字符串校验能过，解析校验必须拦下，且链接与目标都不能被删。
+func TestDeleteItemSymlinkEscapeIsRejected(t *testing.T) {
+	_, index, _, _, httpServer, library, bearer := newDeleteTestServer(t, config.DeleteModePermanent)
+	outside := t.TempDir()
+	target := filepath.Join(outside, "target.jpg")
+	writeTestJPEG(t, target)
+	link := filepath.Join(library, "link.jpg")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatalf("create symlink: %v", err)
+	}
+	indexTestEntry(t, index, link, "link1", "image", "2024-01-02", store.Entry{})
+
+	code, errCode := deleteRequest(t, httpServer.URL+"/api/v1/items/link1", bearer)
+	if code != http.StatusForbidden || errCode != errCodeOutsideLibrary {
+		t.Fatalf("expected 403 %s for a symlink escape, got %d %s", errCodeOutsideLibrary, code, errCode)
+	}
+	if _, err := os.Stat(target); err != nil {
+		t.Fatalf("symlink target outside the library must not be deleted: %v", err)
+	}
+	if _, err := os.Lstat(link); err != nil {
+		t.Fatalf("the symlink itself must be left alone: %v", err)
+	}
+}
+
+// 只读挂载：目录不可写时必须在动文件之前拒绝，返回 403 read_only_mount。
+func TestDeleteItemReadOnlyMountIsRejected(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("以 root 运行时权限位不起作用，无法构造只读目录")
+	}
+	_, index, _, _, httpServer, library, bearer := newDeleteTestServer(t, config.DeleteModePermanent)
+	locked := filepath.Join(library, "locked")
+	if err := os.MkdirAll(locked, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
+	photo := filepath.Join(locked, "read-only.jpg")
+	writeTestJPEG(t, photo)
+	// 文件准备好之后再收紧目录权限：构造「目录不可写、文件本身可读」的只读挂载形态。
+	if err := os.Chmod(locked, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	indexTestEntry(t, index, photo, "ro1", "image", "2024-01-02", store.Entry{})
+
+	code, errCode := deleteRequest(t, httpServer.URL+"/api/v1/items/ro1", bearer)
+	if code != http.StatusForbidden || errCode != errCodeReadOnlyMount {
+		t.Fatalf("expected 403 %s, got %d %s", errCodeReadOnlyMount, code, errCode)
+	}
+	if _, err := os.Stat(photo); err != nil {
+		t.Fatalf("file in a read-only directory must survive: %v", err)
+	}
+	if _, ok, _ := index.GetByID("ro1"); !ok {
+		t.Fatal("index must be untouched when the mount is read-only")
+	}
+
+	// trash 模式要写回收站目录，只读库根同样要拒绝，并且不能留下半建的目录。
+	serverRootReadOnly(t, httpServer, bearer, index, library)
+}
+
+// serverRootReadOnly 把库根改成只读后重复一次 trash 删除，确认回收站不会被建出来。
+func serverRootReadOnly(t *testing.T, httpServer *httptest.Server, bearer string, index *store.Store, library string) {
+	t.Helper()
+	photo := filepath.Join(library, "trash-needs-write.jpg")
+	writeTestJPEG(t, photo)
+	indexTestEntry(t, index, photo, "ro2", "image", "2024-01-02", store.Entry{})
+	// 通过设置切到 trash 模式。
+	if code := patchDeleteMode(t, httpServer.URL, bearer, config.DeleteModeTrash); code != http.StatusOK {
+		t.Fatalf("patch deleteMode: %d", code)
+	}
+	if err := os.Chmod(library, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(library, 0o755) })
+
+	code, errCode := deleteRequest(t, httpServer.URL+"/api/v1/items/ro2", bearer)
+	if code != http.StatusForbidden || errCode != errCodeReadOnlyMount {
+		t.Fatalf("trash into a read-only library: expected 403 %s, got %d %s", errCodeReadOnlyMount, code, errCode)
+	}
+	if _, err := os.Stat(filepath.Join(library, trashDirName)); !os.IsNotExist(err) {
+		t.Fatalf("trash directory must not be created when the library is read-only: %v", err)
+	}
+	if _, err := os.Stat(photo); err != nil {
+		t.Fatalf("file must survive a rejected trash move: %v", err)
+	}
+}
+
+// patchDeleteMode 走控制台用的 PATCH 白名单修改删除模式。
+func patchDeleteMode(t *testing.T, baseURL, bearer, mode string) int {
+	t.Helper()
+	body, _ := json.Marshal(map[string]any{"deleteMode": mode})
+	request, _ := http.NewRequest(http.MethodPatch, baseURL+"/api/v1/settings", bytes.NewReader(body))
+	request.Header.Set("Authorization", bearer)
+	request.Header.Set("Content-Type", "application/json")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	return response.StatusCode
+}
+
+// 动态照片：删静帧必须同时删掉片段，否则盘上会留下一份谁也看不到的孤立文件。
+func TestDeleteItemRemovesPairedMotionClip(t *testing.T) {
+	_, index, _, _, httpServer, library, bearer := newDeleteTestServer(t, config.DeleteModePermanent)
+	still := filepath.Join(library, "IMG_0002.HEIC")
+	clip := filepath.Join(library, "IMG_0002.MOV")
+	if err := os.WriteFile(still, []byte("still"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(clip, []byte("clip"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gen, err := index.BeginScan()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := index.UpsertMany([]store.Entry{
+		{Path: still, ID: "motion1", Kind: "motion", Name: "IMG_0002.HEIC", Capture: 1_709_251_200,
+			DayKey: "2024-01-02", MotionPath: clip, LastSeen: gen},
+		{Path: clip, ID: "clip1", Kind: "motion-clip", Name: "IMG_0002.MOV", Capture: 1_709_251_200,
+			DayKey: "2024-01-02", LastSeen: gen},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := index.FinishScan(gen); err != nil {
+		t.Fatal(err)
+	}
+
+	if code, errCode := deleteRequest(t, httpServer.URL+"/api/v1/items/motion1", bearer); code != http.StatusOK {
+		t.Fatalf("delete live photo: %d %s", code, errCode)
+	}
+	for _, gone := range []string{still, clip} {
+		if _, err := os.Stat(gone); !os.IsNotExist(err) {
+			t.Fatalf("%s must be removed together with the live photo: %v", gone, err)
+		}
+	}
+	if _, ok, _ := index.GetByID("clip1"); ok {
+		t.Fatal("the motion clip row must be hidden too")
+	}
+}
+
+// 未鉴权的删除请求不能到达 handler：与其它 /api/v1 读接口同一套 Bearer 语义。
+func TestDeleteItemRequiresDeviceToken(t *testing.T) {
+	_, index, _, _, httpServer, library, bearer := newDeleteTestServer(t, config.DeleteModePermanent)
+	photo := filepath.Join(library, "auth.jpg")
+	writeTestJPEG(t, photo)
+	indexTestEntry(t, index, photo, "auth1", "image", "2024-01-02", store.Entry{})
+	if code, _ := deleteRequest(t, httpServer.URL+"/api/v1/items/auth1", ""); code != http.StatusUnauthorized {
+		t.Fatalf("delete without a token must be 401, got %d", code)
+	}
+	if _, err := os.Stat(photo); err != nil {
+		t.Fatalf("unauthenticated delete must not touch the file: %v", err)
+	}
+	_ = bearer
+}
+
+// 老版本 App 整份 PUT 设置时不认识 deleteMode：服务端必须沿用当前值，
+// 不能让一次「保存设置」把用户在控制台开启的删除模式静默关掉。
+func TestPutSettingsPreservesDeleteModeWhenOmitted(t *testing.T) {
+	server, _, _, _, httpServer, library, bearer := newDeleteTestServer(t, config.DeleteModeTrash)
+
+	// 模拟老客户端：整份回传，payload 里没有 deleteMode 键。
+	putJSON(t, httpServer.URL+"/api/v1/settings", bearer, map[string]any{
+		"schemaVersion":           1,
+		"preset":                  "balanced",
+		"libraries":               []map[string]string{{"id": "lib", "name": "lib", "path": library}},
+		"excludePatterns":         []string{"@eaDir"},
+		"concurrency":             2,
+		"thumbSize":               512,
+		"thumbCacheLimitBytes":    1 << 30,
+		"originalCacheLimitBytes": 1 << 30,
+		"nightlyThumbBudget":      100,
+		"transcode":               "off",
+		"motionPhoto":             true,
+		"rawPreview":              true,
+		"scanSchedule":            "",
+		"logLevel":                "error",
+	})
+	if got := server.d.Settings.Get().DeleteMode; got != config.DeleteModeTrash {
+		t.Fatalf("deleteMode must survive a legacy full PUT: %q", got)
+	}
+
+	// 显式传 deleteMode 时仍然按传入值生效（包括关掉删除）。
+	putJSON(t, httpServer.URL+"/api/v1/settings", bearer, map[string]any{
+		"schemaVersion":           1,
+		"preset":                  "balanced",
+		"libraries":               []map[string]string{{"id": "lib", "name": "lib", "path": library}},
+		"excludePatterns":         []string{"@eaDir"},
+		"concurrency":             2,
+		"thumbSize":               512,
+		"thumbCacheLimitBytes":    1 << 30,
+		"originalCacheLimitBytes": 1 << 30,
+		"nightlyThumbBudget":      100,
+		"transcode":               "off",
+		"motionPhoto":             true,
+		"rawPreview":              true,
+		"scanSchedule":            "",
+		"logLevel":                "error",
+		"deleteMode":              config.DeleteModeOff,
+	})
+	if got := server.d.Settings.Get().DeleteMode; got != config.DeleteModeOff {
+		t.Fatalf("explicit deleteMode must be applied: %q", got)
 	}
 }

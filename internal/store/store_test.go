@@ -867,3 +867,68 @@ func TestGetByIDPrefersTheCopyWithMotion(t *testing.T) {
 		t.Fatalf("visible ids = %v", ids)
 	}
 }
+
+// 删除接口在文件已经离开磁盘之后调用 MarkRemoved 把索引对齐：这一行必须立刻
+// 从所有读路径消失（GetByID / VisibleIDs / Summary），否则用户要等下一轮扫描
+// 才会看到照片从时间线上消失。幂等与「路径不存在」也要给出可区分的结果。
+func TestMarkRemovedHidesEntryAndIsIdempotent(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "index.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	gen, err := db.BeginScan()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.UpsertMany([]Entry{
+		{Path: "/lib/a.jpg", ID: "keep", Kind: "image", Capture: 1709251200, DayKey: "2024-03-01", LastSeen: gen},
+		{Path: "/lib/b.jpg", ID: "drop", Kind: "image", Capture: 1709251200, DayKey: "2024-03-01", LastSeen: gen},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.FinishScan(gen); err != nil {
+		t.Fatal(err)
+	}
+	// 先让 summary 缓存热起来：标记 removed 必须让缓存失效，否则 /api/v1/stats
+	// 会在下一次写入前一直报旧数字。
+	if summary, err := db.Summary(); err != nil || summary.Items != 2 {
+		t.Fatalf("unexpected warm summary: %+v %v", summary, err)
+	}
+
+	rows, err := db.MarkRemoved("/lib/b.jpg")
+	if err != nil {
+		t.Fatalf("mark removed: %v", err)
+	}
+	if rows != 1 {
+		t.Fatalf("expected one row updated, got %d", rows)
+	}
+
+	if _, ok, err := db.GetByID("drop"); err != nil || ok {
+		t.Fatalf("removed entry must disappear from GetByID: ok=%v err=%v", ok, err)
+	}
+	entry, ok, err := db.GetByPath("/lib/b.jpg")
+	if err != nil || !ok {
+		t.Fatalf("the row itself must stay readable by path: ok=%v err=%v", ok, err)
+	}
+	if !entry.Removed {
+		t.Fatalf("removed flag not persisted: %+v", entry)
+	}
+	ids, err := db.VisibleIDs()
+	if err != nil || strings.Join(ids, ",") != "keep" {
+		t.Fatalf("visible ids = %v (%v)", ids, err)
+	}
+	summary, err := db.Summary()
+	if err != nil || summary.Items != 1 {
+		t.Fatalf("summary not invalidated: %+v (%v)", summary, err)
+	}
+
+	// 重复标记不报错，也不再影响行数：删除接口对同一张照片是幂等的。
+	if rows, err := db.MarkRemoved("/lib/b.jpg"); err != nil || rows != 0 {
+		t.Fatalf("second mark: rows=%d err=%v", rows, err)
+	}
+	// 索引里没有这条路径时返回 0 行而不是错误。
+	if rows, err := db.MarkRemoved("/lib/never-indexed.jpg"); err != nil || rows != 0 {
+		t.Fatalf("unknown path: rows=%d err=%v", rows, err)
+	}
+}

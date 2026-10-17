@@ -33,6 +33,13 @@ func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
 	// 预设只在真正切换时套用：App 每次都会整份回传当前设置，
 	// 若每次都套用预设，用户在预设之上做的单项微调会被反复覆盖。
 	current := s.d.Settings.Get()
+	// PutSettings 是整份替换，而 deleteMode 是服务端安全开关：升级前安装的 App
+	// 不认识这个字段，整份回传的 JSON 里没有它，反序列化后就是空串。若直接落库，
+	// 用户在控制台开启的删除模式会被一次「保存设置」静默关掉（或反之被打开）。
+	// 因此空值一律沿用当前值；显式取值仍由 config.Validate 校验。
+	if next.DeleteMode == "" {
+		next.DeleteMode = current.DeleteMode
+	}
 	if next.Preset != "" && next.Preset != current.Preset {
 		config.ApplyPreset(&next, next.Preset)
 	}
@@ -73,6 +80,7 @@ type patchableSettings struct {
 	Transcode            *string `json:"transcode"`
 	MotionPhoto          *bool   `json:"motionPhoto"`
 	RawPreview           *bool   `json:"rawPreview"`
+	DeleteMode           *string `json:"deleteMode"`
 }
 
 // handlePatchSettings 局部更新设置。
@@ -113,6 +121,11 @@ func (s *Server) handlePatchSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	if patch.RawPreview != nil {
 		next.RawPreview = *patch.RawPreview
+	}
+	// deleteMode 只在控制台里显式改动时才写：它是删除能力的总开关，
+	// 缺省行为由 config.Validate 统一归到 off，不在这一层做第二次判断。
+	if patch.DeleteMode != nil {
+		next.DeleteMode = *patch.DeleteMode
 	}
 
 	if next.Preset != "" && next.Preset != previousPreset {

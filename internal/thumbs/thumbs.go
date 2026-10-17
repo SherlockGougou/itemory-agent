@@ -19,6 +19,7 @@ import (
 	"runtime"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -116,6 +117,76 @@ func (m *Manager) Dir() string { return m.dir }
 // CachePath is the deterministic cache location for one entry + size.
 func (m *Manager) CachePath(id string, size int) string {
 	return filepath.Join(m.dir, fmt.Sprintf("%s-%d.jpg", id, size))
+}
+
+// Invalidate removes every cached size of one entry.
+//
+// 用于媒体条目被删除后立即清掉它的缩略图：CachePath 是 <id>-<size>.jpg，尺寸取决于
+// 请求与设置，事先不知道有哪些，因此按 <id>-<数字>.jpg 的模式逐个匹配。
+// 只接受不含路径分隔符的 id：缓存目录之外的路径不能由调用方指定。
+func (m *Manager) Invalidate(id string) error {
+	if !validCacheID(id) {
+		return fmt.Errorf("invalid thumbnail cache id %q", id)
+	}
+	entries, err := os.ReadDir(m.dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	prefix := id + "-"
+	var firstErr error
+	removedAny := false
+	for _, ent := range entries {
+		if ent.IsDir() {
+			continue
+		}
+		name := ent.Name()
+		if !strings.HasPrefix(name, prefix) || !thumbFileName(strings.TrimPrefix(name, prefix)) {
+			continue
+		}
+		if err := os.Remove(filepath.Join(m.dir, name)); err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			if firstErr == nil {
+				firstErr = fmt.Errorf("remove %s: %w", name, err)
+			}
+			continue
+		}
+		removedAny = true
+	}
+	if removedAny {
+		m.invalidateStats()
+	}
+	return firstErr
+}
+
+// thumbFileName 匹配 CachePath 里 "<id>-" 之后的部分，即 "<size>.jpg"。
+// 只认纯数字尺寸，避免把别的 id（例如 "abc" 与 "abc-1"）误删。
+func thumbFileName(rest string) bool {
+	digits := strings.TrimSuffix(rest, ".jpg")
+	if digits == rest || digits == "" {
+		return false
+	}
+	for i := 0; i < len(digits); i++ {
+		if digits[i] < '0' || digits[i] > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// validCacheID 拒绝空 id、路径分隔符与 "." / ".."。
+func validCacheID(id string) bool {
+	if id == "" || len(id) > 128 {
+		return false
+	}
+	if id == "." || id == ".." {
+		return false
+	}
+	return !strings.ContainsAny(id, `/\`)
 }
 
 // Ensure generates (or returns) the cached thumbnail for an entry.

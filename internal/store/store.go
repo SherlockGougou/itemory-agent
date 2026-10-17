@@ -447,6 +447,23 @@ func (s *Store) Touch(paths []string, gen int64) error {
 	return tx.Commit()
 }
 
+// MarkRemoved hides one entry from every read API by setting entries.removed=1.
+//
+// 删除接口在文件已经离开磁盘之后调用它，把索引与磁盘对齐，用户不必等下一轮扫描
+// 才看不到这条媒体。幂等：重复标记不报错。返回受影响行数，0 表示索引里没有这条路径。
+//
+// 只改 removed 不动 last_seen：下一轮扫描本来就把这条路径当成「本轮未见」，
+// 命中与否都收敛到同一个结果，不会因为提前标记而少统计。
+func (s *Store) MarkRemoved(path string) (int64, error) {
+	s.invalidateSummary()
+	defer s.invalidateSummary()
+	res, err := s.db.Exec(`UPDATE entries SET removed=1 WHERE path=? AND removed=0`, path)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
 // GetByPath returns a single entry.
 func (s *Store) GetByPath(path string) (Entry, bool, error) {
 	row := s.readDB.QueryRow(`SELECT `+entryColumns+` FROM entries WHERE path=?`, path)

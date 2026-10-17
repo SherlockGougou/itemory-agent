@@ -14,6 +14,17 @@ import (
 // SchemaVersion is bumped when the settings file layout changes.
 const SchemaVersion = 1
 
+// DeleteMode 的取值。
+//
+// 默认 off：服务端在用户显式开启之前绝不删除任何文件。trash 把文件移进库根下的
+// 回收站目录，permanent 直接删除。媒体库默认按只读挂载，因此开启删除还需要用户
+// 自己把挂载改成可写，两层开关缺一不可。
+const (
+	DeleteModeOff       = "off"
+	DeleteModeTrash     = "trash"
+	DeleteModePermanent = "permanent"
+)
+
 // Library is one user-selected photo/video root (inside a mounted volume).
 type Library struct {
 	ID   string `json:"id"`
@@ -38,6 +49,8 @@ type Settings struct {
 	ScanSchedule            string    `json:"scanSchedule"`
 	LogLevel                string    `json:"logLevel"`
 	Telemetry               bool      `json:"telemetry"`
+	// DeleteMode 控制删除接口的可用性，取值见 DeleteModeXxx 常量。
+	DeleteMode string `json:"deleteMode"`
 }
 
 // Defaults returns the "balanced" preset.
@@ -52,7 +65,10 @@ func Defaults() Settings {
 		ScanSchedule:    "03:00",
 		LogLevel:        "info",
 		Telemetry:       false,
-		Libraries:       []Library{},
+		// 删除默认关闭：升级上来的老 settings.json 没有这个键，反序列化后是空串，
+		// Validate 同样归到 off，两条路径都不会意外打开删除。
+		DeleteMode: DeleteModeOff,
+		Libraries:  []Library{},
 	}
 	ApplyPreset(&s, "balanced")
 	return s
@@ -124,6 +140,12 @@ func Validate(s Settings) (Settings, error) {
 	case "debug", "info", "warn", "error":
 	default:
 		s.LogLevel = "info"
+	}
+	// 未知取值一律回落 off：删除是不可逆操作，拼错的配置不能变成「默认允许删除」。
+	switch s.DeleteMode {
+	case DeleteModeTrash, DeleteModePermanent:
+	default:
+		s.DeleteMode = DeleteModeOff
 	}
 	if s.ScanSchedule != "" {
 		if _, err := parseHHMM(s.ScanSchedule); err != nil {

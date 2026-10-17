@@ -123,6 +123,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/days/items", s.auth(s.handleDaysItems))
 	mux.Handle("GET /api/v1/days/{day}/items", s.auth(s.handleDayItems))
 	mux.Handle("GET /api/v1/items/{id}", s.auth(s.handleItem))
+	// 删除是惰性能力：deleteMode=off 时接口回 403 且能力位不下发，客户端据此不显示入口。
+	mux.Handle("DELETE /api/v1/items/{id}", s.auth(s.handleDeleteItem))
 	mux.Handle("GET /api/v1/videos", s.auth(s.handleVideos))
 	mux.Handle("GET /api/v1/locations", s.auth(s.handleLocations))
 	mux.Handle("GET /api/v1/thumbs/{id}", s.auth(s.handleThumb))
@@ -246,7 +248,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"uptimeSeconds": int(time.Since(s.d.StartedAt).Seconds()),
 		"scan":          s.d.Scanner.Status(),
 		"pairedDevices": s.d.Tokens.Count(),
-		"capabilities":  capabilities(),
+		"capabilities":  s.capabilities(),
 	})
 }
 
@@ -327,13 +329,16 @@ func (s *Server) handlePair(w http.ResponseWriter, r *http.Request) {
 		"apiVersion":   s.d.APIVersion,
 		"serverId":     s.d.Tokens.ServerID(),
 		"version":      s.d.Version,
-		"capabilities": capabilities(),
+		"capabilities": s.capabilities(),
 	})
 }
 
-// capabilities 返回服务端当前支持的能力位。App 按能力位决定是否使用聚合读接口，
+// baseCapabilities 是服务端恒定支持的能力位。App 按能力位决定是否使用聚合读接口，
 // 旧版本客户端忽略未知能力；旧版本服务端缺能力时客户端回落到按自然日抽样。
-func capabilities() []string {
+//
+// 这里的每一项都必须与「接口在默认设置下一定可用」对应，随设置变化的开关不要放进来，
+// 见 Server.capabilities。
+func baseCapabilities() []string {
 	return []string{
 		"days", "folders", "thumbs", "originals", "range",
 		"events", "rawPreview", "motionPhoto", "diagnostics", "settings",
@@ -342,6 +347,18 @@ func capabilities() []string {
 		// 客户端据此判断远端媒体能否展示这些字段；缺少该能力位的旧服务端不返回这些键。
 		"exif",
 	}
+}
+
+// capabilities 返回能力位，其中受设置控制的部分按当前设置追加。
+//
+// "delete" 只在 deleteMode 不是 off 时下发：客户端据能力位决定是否显示删除入口，
+// 因此关掉删除之后旧客户端也不会留下一个点了就 403 的按钮。
+func (s *Server) capabilities() []string {
+	out := baseCapabilities()
+	if s.d.Settings != nil && deletionEnabled(s.d.Settings.Get().DeleteMode) {
+		out = append(out, "delete")
+	}
+	return out
 }
 
 // handleDashboardPage serves the control console.
