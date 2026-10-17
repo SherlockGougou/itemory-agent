@@ -1219,6 +1219,37 @@ func serverRootReadOnly(t *testing.T, httpServer *httptest.Server, bearer string
 	}
 }
 
+// 库根可写、但文件所在子目录只读：trash 模式的探测必须覆盖源目录，
+// 否则会走到 rename 才失败，用户看到的是 500 而不是可诊断的只读原因。
+func TestDeleteItemSubdirReadOnlyReportsReadOnlyMount(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("以 root 运行时权限位不起作用，无法构造只读目录")
+	}
+	_, index, _, _, httpServer, library, bearer := newDeleteTestServer(t, config.DeleteModeTrash)
+	locked := filepath.Join(library, "locked")
+	if err := os.MkdirAll(locked, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
+	photo := filepath.Join(locked, "sub-ro.jpg")
+	writeTestJPEG(t, photo)
+	if err := os.Chmod(locked, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	indexTestEntry(t, index, photo, "sro1", "image", "2024-01-02", store.Entry{})
+
+	code, errCode := deleteRequest(t, httpServer.URL+"/api/v1/items/sro1", bearer)
+	if code != http.StatusForbidden || errCode != errCodeReadOnlyMount {
+		t.Fatalf("expected 403 %s, got %d %s", errCodeReadOnlyMount, code, errCode)
+	}
+	if _, err := os.Stat(photo); err != nil {
+		t.Fatalf("file must survive a rejected move: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(library, trashDirName)); !os.IsNotExist(err) {
+		t.Fatalf("trash directory must not be created when the subfolder is read-only: %v", err)
+	}
+}
+
 // patchDeleteMode 走控制台用的 PATCH 白名单修改删除模式。
 func patchDeleteMode(t *testing.T, baseURL, bearer, mode string) int {
 	t.Helper()

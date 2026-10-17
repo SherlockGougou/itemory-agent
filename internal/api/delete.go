@@ -124,18 +124,23 @@ func (s *Server) handleDeleteItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 只读挂载探测必须在删除之前：容器把照片目录按 :ro 挂进来时，权限位看上去仍是
-	// 0755，只有真正写入才会暴露 EROFS。探测对象是「真正要写的那个已存在目录」：
-	// 永久删除写目标所在目录，移动删除写库根下的回收站，后者此时可能还不存在，
-	// 因此向上找最近的已存在祖先。这一阶段不创建任何目录。
+	// 0755，只有真正写入才会暴露 EROFS。这一阶段不创建任何目录。
+	//
+	// 两种模式都要探测「源文件所在目录」，因为 rename 与 remove 都要先对源目录取得写权限：
+	// 只探测回收站会让「库根可写、文件所在子目录只读」的形态漏过去，直到 rename 才失败，
+	// 于是用户看到的是 500 而不是可诊断的只读原因。trash 模式额外探测回收站目录（它可能
+	// 还不存在，向上找最近的已存在祖先）。
 	for _, target := range existing {
-		probeDir := filepath.Dir(target.path)
+		dirs := []string{filepath.Dir(target.path)}
 		if settings.DeleteMode == config.DeleteModeTrash {
-			probeDir = nearestExistingDir(trashDirFor(target.root, target.path))
+			dirs = append(dirs, nearestExistingDir(trashDirFor(target.root, target.path)))
 		}
-		if err := probeWritable(probeDir); err != nil {
-			s.d.Logger.Warn("delete rejected: target is not writable", "path", target.path, "error", err)
-			writeError(w, http.StatusForbidden, errCodeReadOnlyMount, readOnlyMountMessage)
-			return
+		for _, dir := range dirs {
+			if err := probeWritable(dir); err != nil {
+				s.d.Logger.Warn("delete rejected: target is not writable", "path", target.path, "dir", dir, "error", err)
+				writeError(w, http.StatusForbidden, errCodeReadOnlyMount, readOnlyMountMessage)
+				return
+			}
 		}
 	}
 

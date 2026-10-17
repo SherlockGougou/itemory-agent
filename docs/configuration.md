@@ -129,8 +129,8 @@ Deleting is refused with these errors:
 | Response | Meaning |
 | --- | --- |
 | `403 delete_disabled` | `deleteMode` is `off`. |
-| `403 read_only_mount` | The library or the trash folder it needs is not writable — typically the photo folder is mounted read-only (`:ro`). Drop `:ro` and recreate the container. |
-| `500 delete_failed` | A write failed for another reason, for example the library is writable but the subfolder holding the file is not. The error message names the path. The file is left in place. |
+| `403 read_only_mount` | The directory that has to be written — the file's own folder or the trash folder — is not writable, typically because the photo folder is mounted read-only (`:ro`). Drop `:ro` and recreate the container. |
+| `500 delete_failed` | The write failed for another reason, for example the file is locked or on a filesystem that refuses the operation. The error message names the path. The file is left in place. |
 | `403 outside_library` | The indexed path is no longer inside a configured library. |
 | `404 not_found` | No live entry with that id. |
 
