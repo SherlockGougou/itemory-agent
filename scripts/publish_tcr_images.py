@@ -57,7 +57,8 @@ def smoke(reference, expected, output):
     for arch, source in expected.items():
         platform = "linux/" + arch
         run(*command, "pull", "--platform", platform, reference, capture=False)
-        metadata = json.loads(run(*command, "image", "inspect", "--platform", platform, reference))[0]
+        # config digest 就是 Image ID，直接检查它也兼容 Runner 较旧的 Docker CLI。
+        metadata = json.loads(run(*command, "image", "inspect", source["config"]["digest"]))[0]
         if metadata["Os"] != "linux" or metadata["Architecture"] != arch:
             raise RuntimeError("Docker 拉取的平台不正确：" + arch)
         config = json.loads(run("skopeo", "inspect", "--no-creds", "--config", "docker://" + reference,
