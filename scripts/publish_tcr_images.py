@@ -54,18 +54,21 @@ def smoke(reference, expected, output):
     (anonymous / "config.json").write_text("{}\n")
     endpoint = os.environ.get("DOCKER_HOST") or run("docker", "context", "inspect", "--format", "{{.Endpoints.docker.Host}}")
     command = ["docker", "--host", endpoint, "--config", str(anonymous)]
+    children = platforms(manifest(reference, True))
     for arch, source in expected.items():
         platform = "linux/" + arch
         run(*command, "pull", "--platform", platform, reference, capture=False)
-        # config digest 就是 Image ID，直接检查它也兼容 Runner 较旧的 Docker CLI。
-        metadata = json.loads(run(*command, "image", "inspect", source["config"]["digest"]))[0]
+        # 精确选择单架构 manifest，兼容不同 image store 和较旧的 inspect CLI。
+        image_ref = reference.rsplit(":", 1)[0] + "@" + children[arch]
+        run(*command, "pull", "--platform", platform, image_ref, capture=False)
+        metadata = json.loads(run(*command, "image", "inspect", image_ref))[0]
         if metadata["Os"] != "linux" or metadata["Architecture"] != arch:
             raise RuntimeError("Docker 拉取的平台不正确：" + arch)
-        config = json.loads(run("skopeo", "inspect", "--no-creds", "--config", "docker://" + reference,
+        config = json.loads(run("skopeo", "inspect", "--no-creds", "--config", "docker://" + image_ref,
                                 "--override-arch", arch, "--override-os", "linux"))
         if metadata["RootFS"]["Layers"] != config["rootfs"]["diff_ids"]:
             raise RuntimeError("Docker 本地镜像的实际内容不一致")
-        actual = run(*command, "run", "--rm", "--network", "none", "--platform", platform, reference, "version")
+        actual = run(*command, "run", "--rm", "--network", "none", "--platform", platform, image_ref, "version")
         if actual.split()[-1].lstrip("v") != reference.rsplit(":", 1)[1]:
             raise RuntimeError("国内镜像二进制版本不正确：" + actual)
         print("匿名 Docker 拉取与版本验证通过：" + platform, flush=True)
