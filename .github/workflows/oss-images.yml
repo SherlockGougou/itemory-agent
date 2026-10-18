@@ -1,0 +1,64 @@
+name: oss-images
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "已有 GHCR 正式版本，例如 0.5.0（不重新构建）"
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: oss-images
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      OSS_BUCKET: ${{ vars.OSS_BUCKET || 'itemory-downloads' }}
+      OSS_REGION: ${{ vars.OSS_REGION || 'cn-chengdu' }}
+      OSS_PREFIX: ${{ vars.OSS_PREFIX || 'releases/itemory-agent' }}
+      OSS_DOWNLOAD_BASE: ${{ vars.OSS_DOWNLOAD_BASE || 'https://itemory-downloads.oss-cn-chengdu.aliyuncs.com/releases/itemory-agent' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install publishing dependencies
+        run: python3 -m pip install -r scripts/requirements-publish.txt
+      - name: Install official ossutil 2.4.0
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .agent-temp/ossutil
+          curl --fail --location --retry 2 --connect-timeout 20 --max-time 180 \
+            https://gosspublic.alicdn.com/ossutil/v2/2.4.0/ossutil-2.4.0-linux-amd64.zip \
+            -o .agent-temp/ossutil/ossutil.zip
+          echo '85edf66b2fb7238f5c7e25cab820cf29312319fe4935b7c86a6b8485eb434f3c  .agent-temp/ossutil/ossutil.zip' | sha256sum --check
+          unzip -q .agent-temp/ossutil/ossutil.zip -d .agent-temp/ossutil
+          chmod +x .agent-temp/ossutil/ossutil-2.4.0-linux-amd64/ossutil
+          echo "$PWD/.agent-temp/ossutil/ossutil-2.4.0-linux-amd64" >> "$GITHUB_PATH"
+      - name: Package, upload and verify anonymous downloads
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
+          OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
+          OSS_SESSION_TOKEN: ${{ secrets.OSS_SESSION_TOKEN }}
+        run: python3 scripts/publish_oss_images.py --version "$RELEASE_VERSION" --output .agent-temp/oss-release
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: oss-release-manifest
+          path: .agent-temp/oss-release/manifest.json

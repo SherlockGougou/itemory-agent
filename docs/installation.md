@@ -2,6 +2,8 @@
 
 **English** | [简体中文](installation.zh-CN.md)
 
+> **Online install / upgrade:** in your NAS SSH terminal, run `curl -fsSL https://itemory.gouqinglin.com/install.sh | bash`. Requires Bash, Python 3.9+ and Docker Compose V2. New photo mounts are read-only; upgrades preserve configuration and pairing. See [online installation](online-install.md).
+
 This guide assumes you have never run a container on your NAS before. If you have, the [Quick start](../README.md#quick-start) in the README is enough.
 
 > [!TIP]
@@ -119,7 +121,7 @@ Then create the container. Menu names can differ slightly between system version
 | OpenMediaVault | `omv.yml` | Install the **openmediavault-compose** plugin (from omv-extras), then *Services → Compose → Files → Add*, paste, save, and *Up*. |
 | Any Linux with Docker | `generic.yml` | Save it as `compose.yaml` in an empty folder and run `docker compose up -d` there. |
 
-The first start downloads the image (about 240 MB) from `ghcr.io`. No account or login is needed.
+The first start downloads the matching architecture from the public Tencent Cloud registry (about 220–240 MB), without login. This applies to every system. Overseas, use `ghcr.io/sherlockgougou/itemory-agent:1`. If direct pulls fail, see [universal OSS installation](oss-distribution.md).
 
 ### Check that it started
 

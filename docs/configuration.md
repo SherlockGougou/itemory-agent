@@ -17,7 +17,7 @@ Most settings are changed from the Itemory app under **Itemory Private Cloud Set
 
 | Line | Default | What it does | Change it? |
 | --- | --- | --- | --- |
-| `image` | `ghcr.io/sherlockgougou/itemory-agent:1` | The image to run. `:1` always points to the latest release; use a version such as `:0.4.0` to pin one. | Only to pin a version |
+| `image` | `ccr.ccs.tencentyun.com/itemory/itemory-agent:1` | The image to run. `:1` always points to the latest release; use a version such as `:0.5.0` to pin one. | Only to pin a version |
 | `user` | `"1000:1000"` | The user ID and group ID the agent runs as. See [installation step 3](installation.md#step-3-pick-the-run-user). | If folders are unreadable |
 | `volumes` | varies | Photo folders (read-only, under `/volumes/…`) and the data folder (`/data`). See [Deleting photos](#deleting-photos) before removing `:ro`. | Yes, always |
 | `ports` | `"8787:8787"` | `NAS port:container port`. | If 8787 is taken; change the first number |
@@ -131,11 +131,15 @@ Deleting is refused with these errors:
 | `403 delete_disabled` | `deleteMode` is `off`. |
 | `403 read_only_mount` | The directory that has to be written — the file's own folder or the trash folder — is not writable, typically because the photo folder is mounted read-only (`:ro`). Drop `:ro` and recreate the container. |
 | `500 delete_failed` | The write failed for another reason, for example the file is locked or on a filesystem that refuses the operation. The error message names the path. The file is left in place. |
-| `403 outside_library` | The indexed path is no longer inside a configured library. |
+| `403 outside_library` | The indexed path is no longer inside a configured library, or the trash directory contains a symbolic link or a non-directory component. |
 | `404 not_found` | No live entry with that id. |
 
 > [!IMPORTANT]
 > Deleting is the only operation in which the agent writes inside your photo folders, and it only works when both switches are on. Turning `deleteMode` back to `off` and restoring `:ro` returns the agent to read-only behaviour; it does not undo files that were already deleted.
+
+The trash folder and its subfolders must be real directories inside the library, not symbolic links. This includes links to another directory inside the same library and dangling links. Such paths are rejected before the writable-folder probe or any media move, leaving the original file and its index entry unchanged.
+
+For deleting a whole day, the app requires a complete day list. The health response exposes `scan.complete`: it is true only after a successful full or incremental scan has reconciled the index, and false during a scan, after failure or cancellation, or before a scan has completed in the current server process. Clients also compare the day list with its independent item count. Older servers without this field still support individual deletion; update the service and complete a scan before using day deletion. On a partial deletion failure, retry only the failed originals; originals already removed are not deleted again.
 
 ## Settings in the app
 

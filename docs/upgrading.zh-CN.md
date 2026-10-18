@@ -2,6 +2,8 @@
 
 [English](upgrading.md) | **简体中文**
 
+> **在线安装 / 升级：**在 NAS 的 SSH 终端执行 `curl -fsSL https://itemory.gouqinglin.com/install.sh | bash`。需要 Bash、Python 3.9+ 和 Docker Compose V2；照片默认只读，升级保留配置与配对。见[在线安装说明](online-install.zh-CN.md)。
+
 - [查看当前版本](#查看当前版本)
 - [升级](#升级)
 - [备份](#备份)

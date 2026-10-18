@@ -35,7 +35,7 @@ func TestTryBeginPublishesRunningBeforeWalk(t *testing.T) {
 	}
 	defer cancel()
 	progress := scanner.Status()
-	if !progress.Running || progress.Mode != "full" || progress.StartedAt.IsZero() {
+	if !progress.Running || progress.Complete || progress.Mode != "full" || progress.StartedAt.IsZero() {
 		t.Fatalf("TryBegin must publish running progress immediately: %+v", progress)
 	}
 	// 没配置媒体库时 Run 会 failScan，状态必须带上原因，不能静默回到 idle。
@@ -43,7 +43,7 @@ func TestTryBeginPublishesRunningBeforeWalk(t *testing.T) {
 		t.Fatal("expected failure when no libraries configured")
 	}
 	progress = scanner.Status()
-	if progress.Running || progress.Message != "no libraries configured" {
+	if progress.Running || progress.Complete || progress.Message != "no libraries configured" {
 		t.Fatalf("failed scan must record reason: %+v", progress)
 	}
 }
@@ -102,7 +102,7 @@ func TestScanIndexesPairsAndIsIncremental(t *testing.T) {
 		t.Fatalf("scan: %v", err)
 	}
 	progress := scanner.Status()
-	if progress.Running || progress.FilesSeen == 0 {
+	if progress.Running || !progress.Complete || progress.FilesSeen == 0 {
 		t.Fatalf("unexpected progress: %+v", progress)
 	}
 
@@ -302,7 +302,7 @@ func TestIncompleteScanRetainsEntries(t *testing.T) {
 		t.Fatalf("incomplete scan should finish with a visible status: %v", err)
 	}
 	progress := scanner.Status()
-	if progress.Message != "scan incomplete; existing entries retained" {
+	if progress.Complete || progress.Message != "scan incomplete; existing entries retained" {
 		t.Fatalf("unexpected incomplete status: %+v", progress)
 	}
 	stats, err := index.Stats()

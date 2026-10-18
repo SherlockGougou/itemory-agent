@@ -2,6 +2,10 @@
 
 [English](README.md) | **简体中文**
 
+> **在线安装 / 升级：**在 NAS 的 SSH 终端执行 `curl -fsSL https://itemory.gouqinglin.com/install.sh | bash`。需要 Bash、Python 3.9+ 和 Docker Compose V2；照片默认只读，升级保留配置与配对。见[在线安装说明](docs/online-install.zh-CN.md)。
+
+默认使用腾讯云国内公开镜像，所有支持系统通用；海外可选 GHCR，网络受限时使用 [OSS 离线包](docs/oss-distribution.zh-CN.md)。用户无需仓库账号。
+
 [![ci](https://github.com/SherlockGougou/itemory-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/SherlockGougou/itemory-agent/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 

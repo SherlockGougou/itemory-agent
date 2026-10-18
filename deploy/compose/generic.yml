@@ -9,7 +9,7 @@
 # See docs/configuration.md#deleting-photos. Keep ":ro" if you don't need it.
 services:
   itemory-agent:
-    image: ghcr.io/sherlockgougou/itemory-agent:1
+    image: ccr.ccs.tencentyun.com/itemory/itemory-agent:1
     container_name: itemory-agent
     restart: unless-stopped
     user: "1000:1000"                    # uid:gid that can read photos

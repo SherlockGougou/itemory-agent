@@ -22,7 +22,9 @@ import (
 
 // Progress is the live scan state exposed through /api/v1/scan/status.
 type Progress struct {
-	Running      bool      `json:"running"`
+	Running bool `json:"running"`
+	// Complete 只在整轮扫描成功收敛索引后为 true，供整天删除校验清单完整性。
+	Complete     bool      `json:"complete"`
 	Mode         string    `json:"mode"`
 	Libraries    int       `json:"libraries"`
 	FoldersDone  int       `json:"foldersDone"`
@@ -242,6 +244,7 @@ func (s *Scanner) Run(ctx context.Context, cancel context.CancelFunc, mode strin
 	progress := s.Status()
 	progress.Running = false
 	progress.Cancelled = cancelled
+	progress.Complete = !cancelled && !scanIncomplete.Load()
 	progress.FinishedAt = time.Now()
 	switch {
 	case cancelled:

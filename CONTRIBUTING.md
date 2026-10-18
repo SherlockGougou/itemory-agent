@@ -63,6 +63,8 @@ git push origin v0.4.1
 
 `.github/workflows/release.yml` then runs the tests, builds the `linux/amd64` and `linux/arm64` image, pushes `ghcr.io/sherlockgougou/itemory-agent:<version>` and `:1`, and smoke-tests both architectures.
 
+The release then calls `tcr-images.yml` and `oss-images.yml` to distribute the existing GHCR images to Tencent Cloud and universal offline bundles without rebuilding. Credentials, anonymous verification and stable-channel rules are documented in [Tencent Cloud publishing](docs/tcr-distribution.md) and [OSS publishing](docs/oss-distribution.md).
+
 ## License
 
 By contributing you agree that your contributions are licensed under the [MIT License](LICENSE).

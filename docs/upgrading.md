@@ -2,6 +2,8 @@
 
 **English** | [简体中文](upgrading.zh-CN.md)
 
+> **Online install / upgrade:** in your NAS SSH terminal, run `curl -fsSL https://itemory.gouqinglin.com/install.sh | bash`. Requires Bash, Python 3.9+ and Docker Compose V2. New photo mounts are read-only; upgrades preserve configuration and pairing. See [online installation](online-install.md).
+
 - [Check your version](#check-your-version)
 - [Upgrade](#upgrade)
 - [Back up](#back-up)

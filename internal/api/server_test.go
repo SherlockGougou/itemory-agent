@@ -896,6 +896,48 @@ func newDeleteTestServer(t *testing.T, deleteMode string) (*Server, *store.Store
 	return server, index, thumbMgr, hub, httpServer, library, pairDevice(t, httpServer.URL, "135790")
 }
 
+func TestHealthScanCompletenessTracksFinishedAndCancelledScans(t *testing.T) {
+	server, _, _, _, httpServer, _, _ := newDeleteTestServer(t, config.DeleteModeOff)
+	read := func() scan.Progress {
+		t.Helper()
+		code, data := getBody(t, httpServer.URL+"/api/v1/health", "")
+		if code != http.StatusOK {
+			t.Fatalf("health status %d", code)
+		}
+		var response struct {
+			Scan scan.Progress `json:"scan"`
+		}
+		if err := json.Unmarshal(data, &response); err != nil {
+			t.Fatal(err)
+		}
+		return response.Scan
+	}
+	if read().Complete {
+		t.Fatal("a fresh server must not claim a complete scan")
+	}
+	if err := server.d.Scanner.Scan("full"); err != nil {
+		t.Fatal(err)
+	}
+	if !read().Complete {
+		t.Fatal("a successfully reconciled scan must be complete")
+	}
+	ctx, cancel, err := server.d.Scanner.TryBegin("incremental")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if read().Complete {
+		t.Fatal("a running scan must not remain complete")
+	}
+	cancel()
+	if err := server.d.Scanner.Run(ctx, cancel, "incremental"); err != nil {
+		t.Fatal(err)
+	}
+	final := read()
+	if final.Complete || !final.Cancelled {
+		t.Fatalf("cancelled scan cannot be complete: %+v", final)
+	}
+}
+
 // indexTestEntry 把一个真实存在的文件登记进索引，返回它的内容 id。
 func indexTestEntry(t *testing.T, index *store.Store, path, id, kind, dayKey string, extra store.Entry) {
 	t.Helper()
@@ -1132,6 +1174,55 @@ func TestDeleteItemOutsideLibraryIsRejected(t *testing.T) {
 		t.Fatalf("file outside the library must not be touched: %v", err)
 	}
 	_ = library
+}
+
+// 回收站根、嵌套目录和断开的链接，都要在探测可写性之前拒绝。
+func TestDeleteItemTrashSymlinksAreRejectedBeforeMutation(t *testing.T) {
+	for _, scenario := range []string{"root-outside", "nested-outside", "root-inside", "dangling"} {
+		t.Run(scenario, func(t *testing.T) {
+			_, index, _, _, httpServer, library, bearer := newDeleteTestServer(t, config.DeleteModeTrash)
+			outside := t.TempDir()
+			photo := filepath.Join(library, "trip", "photo.jpg")
+			if err := os.MkdirAll(filepath.Dir(photo), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			writeTestJPEG(t, photo)
+			indexTestEntry(t, index, photo, "trash-link", "image", "2024-01-02", store.Entry{})
+			link := filepath.Join(library, trashDirName)
+			destination := outside
+			switch scenario {
+			case "nested-outside":
+				if err := os.MkdirAll(link, 0o755); err != nil {
+					t.Fatal(err)
+				}
+				link = filepath.Join(link, "trip")
+			case "root-inside":
+				destination = filepath.Join(library, "other")
+				if err := os.MkdirAll(destination, 0o755); err != nil {
+					t.Fatal(err)
+				}
+			case "dangling":
+				destination = filepath.Join(outside, "missing")
+			}
+			if err := os.Symlink(destination, link); err != nil {
+				t.Fatal(err)
+			}
+			code, errCode := deleteRequest(t, httpServer.URL+"/api/v1/items/trash-link", bearer)
+			if code != http.StatusForbidden || errCode != errCodeOutsideLibrary {
+				t.Fatalf("expected 403 outside_library, got %d %s", code, errCode)
+			}
+			if _, err := os.Stat(photo); err != nil {
+				t.Fatalf("original changed: %v", err)
+			}
+			if _, ok, err := index.GetByID("trash-link"); err != nil || !ok {
+				t.Fatalf("index must remain visible: found=%v err=%v", ok, err)
+			}
+			entries, err := os.ReadDir(outside)
+			if err != nil || len(entries) != 0 {
+				t.Fatalf("outside directory changed: entries=%v err=%v", entries, err)
+			}
+		})
+	}
 }
 
 // 符号链接指向库外：字符串校验能过，解析校验必须拦下，且链接与目标都不能被删。

@@ -110,6 +110,14 @@ func (s *Server) handleDeleteItem(w http.ResponseWriter, r *http.Request) {
 				fmt.Sprintf("inspect %s: %v", target, statErr))
 			return
 		}
+		if settings.DeleteMode == config.DeleteModeTrash {
+			if err := validateTrashDirectories(root, target); err != nil {
+				s.d.Logger.Warn("delete rejected: unsafe trash directory", "path", target, "error", err)
+				writeError(w, http.StatusForbidden, errCodeOutsideLibrary,
+					"trash directory must remain inside its library without symbolic links")
+				return
+			}
+		}
 		existing = append(existing, deleteTarget{path: target, root: root})
 	}
 	if len(existing) == 0 {
@@ -283,9 +291,15 @@ func trashPrefix(now time.Time) string {
 // 保持目录结构；目标已存在时追加序号，绝不覆盖回收站里已有的文件
 // （那里的东西是用户的数据，静默覆盖等于二次删除）。
 func moveToTrash(root, target string) (string, error) {
+	if err := validateTrashDirectories(root, target); err != nil {
+		return "", err
+	}
 	dir := trashDirFor(root, target)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", fmt.Errorf("create trash directory %s: %w", dir, err)
+	}
+	if err := validateTrashDirectories(root, target); err != nil {
+		return "", err
 	}
 	rel := relativeToRoot(root, target)
 	prefix := trashPrefix(time.Now())
@@ -310,6 +324,30 @@ func moveToTrash(root, target string) (string, error) {
 		return "", fmt.Errorf("move %s to trash: %w", target, err)
 	}
 	return dest, nil
+}
+
+// validateTrashDirectories 在可写性探测与文件操作之前拒绝回收站路径中的链接。
+// Lstat 不跟随链接，连断开的链接也会拒绝；不存在的后缀留给后续 MkdirAll 创建。
+func validateTrashDirectories(root, target string) error {
+	rel, err := filepath.Rel(root, trashDirFor(root, target))
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return fmt.Errorf("trash directory is outside its library")
+	}
+	current := root
+	for _, component := range strings.Split(rel, string(os.PathSeparator)) {
+		current = filepath.Join(current, component)
+		info, err := os.Lstat(current)
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("inspect trash directory: %w", err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+			return fmt.Errorf("trash path contains a symbolic link or non-directory")
+		}
+	}
+	return nil
 }
 
 // trashDirFor 返回 target 在回收站里对应的目录，保持原目录结构。

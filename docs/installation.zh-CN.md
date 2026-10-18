@@ -2,6 +2,8 @@
 
 [English](installation.md) | **简体中文**
 
+> **在线安装 / 升级：**在 NAS 的 SSH 终端执行 `curl -fsSL https://itemory.gouqinglin.com/install.sh | bash`。需要 Bash、Python 3.9+ 和 Docker Compose V2；照片默认只读，升级保留配置与配对。见[在线安装说明](online-install.zh-CN.md)。
+
 本指南假设你从没在 NAS 上运行过容器。如果你已经熟悉 Docker，看 README 里的[快速开始](../README.zh-CN.md#快速开始)就够了。
 
 > [!TIP]
@@ -119,7 +121,7 @@ sudo chown -R 1026:100 /volume1/docker/itemory-agent
 | OpenMediaVault | `omv.yml` | 安装 **openmediavault-compose** 插件（来自 omv-extras），然后「服务 → Compose → Files → 添加」，粘贴、保存，再点「Up」。 |
 | 装有 Docker 的 Linux | `generic.yml` | 保存为一个空文件夹里的 `compose.yaml`，在该文件夹执行 `docker compose up -d`。 |
 
-第一次启动会从 `ghcr.io` 下载镜像（约 240 MB），不需要任何账号或登录。
+第一次启动默认从腾讯云公开仓库下载匹配架构的镜像（约 220–240 MB），无需登录。适用于所有系统；海外可以改用 `ghcr.io/sherlockgougou/itemory-agent:1`。不能直接拉取时，见 [OSS 通用离线安装](oss-distribution.zh-CN.md)。
 
 ### 确认容器已启动
 
