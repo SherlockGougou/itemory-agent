@@ -1,11 +1,85 @@
 package api
 
 import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/SherlockGougou/itemory-agent/internal/config"
 	"github.com/SherlockGougou/itemory-agent/internal/scan"
 )
+
+func TestHealthHidesPrivateScanDetailsFromAnonymousRequests(t *testing.T) {
+	server, _, _, _, httpServer, library, bearer := newDeleteTestServer(t, config.DeleteModeOff)
+	writeTestJPEG(t, filepath.Join(library, "private-family-photo.jpg"))
+	if err := server.d.Scanner.Scan("full"); err != nil {
+		t.Fatal(err)
+	}
+	progress := server.d.Scanner.Status()
+	if progress.CurrentPath == "" || progress.Message == "" {
+		t.Fatal("scan must produce private path and a detailed message for this regression")
+	}
+	adminCookie := configureTestAdmin(t, server)
+	for _, tc := range []struct {
+		name    string
+		bearer  string
+		cookie  *http.Cookie
+		private bool
+	}{
+		{name: "anonymous"},
+		{name: "invalid token", bearer: "Bearer invalid"},
+		{name: "invalid session", cookie: &http.Cookie{Name: adminCookie.Name, Value: "invalid"}},
+		{name: "paired device", bearer: bearer, private: true},
+		{name: "administrator", cookie: adminCookie, private: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			request, err := http.NewRequest(http.MethodGet, httpServer.URL+"/api/v1/health", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.bearer != "" {
+				request.Header.Set("Authorization", tc.bearer)
+			}
+			if tc.cookie != nil {
+				request.AddCookie(tc.cookie)
+			}
+			response, err := http.DefaultClient.Do(request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer response.Body.Close()
+			if response.StatusCode != http.StatusOK || response.Header.Get("Cache-Control") != "no-store" {
+				t.Fatalf("unexpected health response: %d %v", response.StatusCode, response.Header)
+			}
+			var body bytes.Buffer
+			if _, err := body.ReadFrom(response.Body); err != nil {
+				t.Fatal(err)
+			}
+			var payload struct {
+				Scan scan.Progress `json:"scan"`
+			}
+			if err := json.Unmarshal(body.Bytes(), &payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload.Scan.Complete != progress.Complete || payload.Scan.MediaIndexed != progress.MediaIndexed {
+				t.Fatal("health lost scan completion or counters")
+			}
+			if tc.private {
+				if payload.Scan.CurrentPath != progress.CurrentPath || payload.Scan.Message != progress.Message {
+					t.Fatal("authenticated health lost scan details")
+				}
+			} else if bytes.Contains(body.Bytes(), []byte(library)) || payload.Scan.CurrentPath != "" || payload.Scan.Message != "" {
+				t.Fatalf("anonymous health leaked private scan details: %s", body.String())
+			}
+		})
+	}
+	if server.d.Scanner.Status().CurrentPath != progress.CurrentPath {
+		t.Fatal("anonymous health mutated the scanner's private state")
+	}
+}
 
 // TestLastScanCheckUsesPersistedState 守住一条曾经误报的判定。
 //

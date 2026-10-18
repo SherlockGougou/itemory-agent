@@ -239,14 +239,46 @@ func TestOverviewRequiresAdminSession(t *testing.T) {
 	}
 }
 
-// TestPublicDashboardDoesNotLeakAdminFields 守住 R3：
-// 匿名可读的 dashboard 不得混入设备、健康判定等管理面字段。
-func TestPublicDashboardDoesNotLeakAdminFields(t *testing.T) {
+// TestDashboardRequiresCredentials 验证路径、设备名称和日志只能由认证访问者读取。
+func TestDashboardRequiresCredentials(t *testing.T) {
 	agent := newPairingTestServer(t)
+	settings := agent.settings.Get()
+	privatePath := t.TempDir()
+	settings.Libraries = []config.Library{{ID: "private", Name: "Private family library", Path: privatePath}}
+	if err := agent.settings.Update(settings); err != nil {
+		t.Fatal(err)
+	}
+	privateLog := `level=INFO msg="device paired" device="Private phone"`
+	if _, err := agent.ring.Write([]byte(privateLog + "\n")); err != nil {
+		t.Fatal(err)
+	}
+	window := agent.openPairingWindow(t)
+	bearer := pairDevice(t, agent.server.URL, window.code)
+	for _, credential := range []string{"", "Bearer invalid"} {
+		status, body := getBody(t, agent.server.URL+"/api/v1/dashboard", credential)
+		if status != http.StatusUnauthorized {
+			t.Fatalf("unauthorized dashboard status %d", status)
+		}
+		for _, private := range []string{privatePath, settings.Libraries[0].Name, "Private phone", "libraries", "logs", "volumes"} {
+			if bytes.Contains(body, []byte(private)) {
+				t.Fatalf("unauthorized dashboard leaked %q", private)
+			}
+		}
+	}
 
-	status, body := getBody(t, agent.server.URL+"/api/v1/dashboard", "")
+	status, body := getBody(t, agent.server.URL+"/api/v1/dashboard", bearer)
 	if status != http.StatusOK {
 		t.Fatalf("dashboard status %d", status)
+	}
+	var details struct {
+		Libraries []config.Library `json:"libraries"`
+		Logs      []string         `json:"logs"`
+	}
+	if err := json.Unmarshal(body, &details); err != nil {
+		t.Fatal(err)
+	}
+	if len(details.Libraries) != 1 || details.Libraries[0].Path != privatePath || len(details.Logs) == 0 || details.Logs[0] != privateLog {
+		t.Fatalf("paired device lost private dashboard data: %s", body)
 	}
 	var payload map[string]any
 	if err := json.Unmarshal(body, &payload); err != nil {
@@ -254,14 +286,20 @@ func TestPublicDashboardDoesNotLeakAdminFields(t *testing.T) {
 	}
 	for _, key := range []string{"devices", "tokens", "health", "schedule"} {
 		if _, leaked := payload[key]; leaked {
-			t.Fatalf("public dashboard leaked %q", key)
+			t.Fatalf("paired-device dashboard leaked administrator field %q", key)
 		}
 	}
 	// 反向确认它确实还在提供原有字段，避免「因为整个 handler 挂了所以没泄漏」。
 	for _, key := range []string{"service", "libraries", "index", "cache", "tools", "pairing"} {
 		if _, ok := payload[key]; !ok {
-			t.Fatalf("public dashboard lost %q", key)
+			t.Fatalf("paired-device dashboard lost %q", key)
 		}
+	}
+	if err := agent.tokens.Revoke(agent.tokens.List()[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	if status, _ := getBody(t, agent.server.URL+"/api/v1/dashboard", bearer); status != http.StatusUnauthorized {
+		t.Fatalf("revoked device can still read dashboard: %d", status)
 	}
 }
 

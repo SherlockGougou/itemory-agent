@@ -12,13 +12,10 @@ import (
 	"github.com/SherlockGougou/itemory-agent/internal/volumes"
 )
 
-// logTailLines is how many recent log lines the public dashboard shows.
+// logTailLines 是认证后的聚合接口返回的最近日志行数。
 const logTailLines = 40
 
-// handleDashboard serves the read-only aggregate behind the web dashboard.
-//
-// Everything here is intentionally public (LAN-trust): it must never include a
-// device token, its hash, or the pairing code.
+// handleDashboard 为管理员或已配对 App 提供兼容的只读聚合数据。
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	snap := s.snapshot(false)
 	settings := snap.settings
@@ -98,8 +95,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// snapshot 汇总一次聚合请求需要的全部取数。公开的 dashboard 与需要管理员会话的
-// admin overview 共用它，避免同一份聚合逻辑写两遍之后互相漂移。
+// snapshot 汇总一次聚合请求需要的全部取数，dashboard 与 admin overview 共用。
 type snapshot struct {
 	settings   config.Settings
 	stats      store.Stats
@@ -173,8 +169,7 @@ func (s *Server) discoverVolumes(libraries []config.Library, refresh bool) []vol
 	return found
 }
 
-// dashboardLogs returns the recent log tail with pairing codes masked, since the
-// dashboard (and therefore its log card) is readable by anyone on the LAN.
+// dashboardLogs 返回认证后的日志摘要，仍隐藏配对码等凭据。
 func (s *Server) dashboardLogs() []string {
 	if s.d.LogRing == nil {
 		return []string{}

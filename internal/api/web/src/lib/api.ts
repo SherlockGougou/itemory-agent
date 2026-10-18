@@ -113,9 +113,7 @@ export interface VolumeInfo {
 /**
  * 控制台的聚合数据。
  *
- * 同一份类型服务两个接口：未登录时读公开的 /api/v1/dashboard（最小集），
- * 登录后读 /api/v1/admin/overview（含设备、健康判定、计划）。因此管理面字段
- * 一律可选——组件必须能在这两种形态下都不崩。
+ * 登录后从 /api/v1/admin/overview 读取；未登录时不请求聚合数据。
  */
 export interface ConsoleData {
   service: ServiceInfo;
@@ -174,7 +172,7 @@ export function useAdminStatus(): SWRResponse<AdminStatus, ApiError> {
  * 短 TTL 缓存，所以这个频率不会退化成每请求一次全目录遍历。
  */
 export function useConsoleData(authenticated: boolean): SWRResponse<ConsoleData, ApiError> {
-  const key = authenticated ? "/api/v1/admin/overview" : "/api/v1/dashboard";
+  const key = authenticated ? "/api/v1/admin/overview" : null;
   return useSWR<ConsoleData, ApiError>(key, fetcher, {
     // 扫描中 1 秒；刚点下扫描、状态还没切到 running 时也按 1 秒拉，
     // 否则启动瞬间会卡在 5 秒空窗里，界面上像没反应。
@@ -185,7 +183,6 @@ export function useConsoleData(authenticated: boolean): SWRResponse<ConsoleData,
       return 5000;
     },
     revalidateOnFocus: true,
-    keepPreviousData: true,
   });
 }
 

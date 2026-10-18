@@ -11,9 +11,8 @@ import (
 
 // handleOverview 是控制台管理员视图背后的聚合接口。
 //
-// 与公开的 handleDashboard 刻意分开：dashboard 是所有 LAN 访问者都能读的最小集，
-// 而这里带设备列表、完整媒体库路径与诊断性字段。把管理面塞进匿名接口，等于把
-// 整个局域网都当成管理员。两者共用 snapshot()，所以取数逻辑只有一份。
+// 与兼容已配对 App 的 handleDashboard 分开，这里额外返回管理员专享的设备列表
+// 和诊断性字段。两者共用 snapshot()，所以取数逻辑只有一份。
 func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request) {
 	// 诊断页的「重新检测」用 refresh=1 绕过挂载探测缓存。
 	refresh := r.URL.Query().Get("refresh") == "1"

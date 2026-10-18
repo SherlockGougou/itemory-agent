@@ -440,8 +440,7 @@ func TestPairingWindowSingleUseAndExpiry(t *testing.T) {
 	}
 }
 
-// TestDashboardAggregateAndRedaction covers the read-only dashboard payload: it
-// carries the status the page shows and never the pairing code or a token.
+// TestDashboardAggregateAndRedaction 验证认证后的状态聚合仍隐藏配对码。
 func TestDashboardAggregateAndRedaction(t *testing.T) {
 	agent := newPairingTestServer(t)
 	code := agent.openPairingWindow(t).code
@@ -449,7 +448,7 @@ func TestDashboardAggregateAndRedaction(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	status, body := getBody(t, agent.server.URL+"/api/v1/dashboard", "")
+	status, body := requestWithCookie(t, http.MethodGet, agent.server.URL+"/api/v1/dashboard", agent.adminCookie, nil)
 	if status != http.StatusOK {
 		t.Fatalf("dashboard status %d", status)
 	}

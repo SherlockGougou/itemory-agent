@@ -74,8 +74,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/admin/setup", s.handleAdminSetup)
 	mux.HandleFunc("POST /api/v1/admin/login", s.handleAdminLogin)
 	mux.Handle("POST /api/v1/admin/logout", s.adminSession(s.handleAdminLogout))
-	// 管理员专享的聚合取数。匿名可读的 /dashboard 是给未登录页面与 App 用的最小集，
-	// 设备、完整日志、诊断这些管理面字段只从这里出去。
+	// 管理员专享的聚合取数；旧 dashboard 聚合接口仍兼容已配对 App。
 	mux.Handle("GET /api/v1/admin/overview", s.adminAuth(s.handleOverview))
 	mux.HandleFunc("GET /api/v1/claim", s.handleClaimInfo)
 	mux.Handle("POST /api/v1/claim", s.adminAuth(s.handleClaimArm))
@@ -84,7 +83,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/claim/disarm", s.adminAuth(s.handleClaimDisarm))
 	mux.Handle("GET /api/v1/claim/qr.svg", s.adminAuth(s.handleClaimQR))
 	mux.HandleFunc("POST /api/v1/pair", s.handlePair)
-	mux.HandleFunc("GET /api/v1/dashboard", s.handleDashboard)
+	mux.Handle("GET /api/v1/dashboard", s.authOrAdmin(s.handleDashboard))
 	mux.HandleFunc("GET /dashboard", s.handleDashboardPage)
 	mux.Handle("GET /_next/", http.FileServerFS(webAssets()))
 	mux.Handle("GET /favicon.ico", http.FileServerFS(webAssets()))
@@ -209,6 +208,10 @@ func (s *Server) auth(next http.HandlerFunc) http.Handler {
 
 func (s *Server) withRequestLog(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// API 包含私人媒体和管理数据，不能被浏览器或共享代理缓存。
+		if strings.HasPrefix(r.URL.Path, "/api/v1/") {
+			w.Header().Set("Cache-Control", "no-store")
+		}
 		started := time.Now()
 		recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(recorder, r)
@@ -240,13 +243,20 @@ func (r *statusRecorder) Flush() {
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+	progress := s.d.Scanner.Status()
+	token, paired := bearerToken(r)
+	if !s.hasAdminSession(r) && (!paired || !s.d.Tokens.Verify(token)) {
+		// 匿名探活只需要扫描状态；路径和错误详情可能包含私人文件名。
+		progress.CurrentPath = ""
+		progress.Message = ""
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status":        "ok",
 		"version":       s.d.Version,
 		"apiVersion":    s.d.APIVersion,
 		"serverId":      s.d.Tokens.ServerID(),
 		"uptimeSeconds": int(time.Since(s.d.StartedAt).Seconds()),
-		"scan":          s.d.Scanner.Status(),
+		"scan":          progress,
 		"pairedDevices": s.d.Tokens.Count(),
 		"capabilities":  s.capabilities(),
 	})
