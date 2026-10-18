@@ -66,3 +66,5 @@ git push origin v0.4.1
 ## 许可证
 
 提交贡献即表示你同意你的贡献以 [MIT 许可证](LICENSE)发布。
+
+发布后再调用 `tcr-images.yml` 与 `oss-images.yml`，从已有 GHCR 镜像分发腾讯云镜像和全系统离线包。凭据、匿名校验与稳定通道规则见 [腾讯云发布](docs/tcr-distribution.zh-CN.md)和 [OSS 发布](docs/oss-distribution.zh-CN.md)。

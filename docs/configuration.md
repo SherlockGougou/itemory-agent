@@ -16,7 +16,7 @@ Most settings are changed from the Itemory app under **Itemory Private Cloud Set
 
 | Line | Default | What it does | Change it? |
 | --- | --- | --- | --- |
-| `image` | `ghcr.io/sherlockgougou/itemory-agent:1` | The image to run. `:1` always points to the latest release; use a version such as `:0.4.0` to pin one. | Only to pin a version |
+| `image` | `ccr.ccs.tencentyun.com/itemory/itemory-agent:1` | The image to run. `:1` always points to the latest release; use a version such as `:0.5.0` to pin one. | Only to pin a version |
 | `user` | `"1000:1000"` | The user ID and group ID the agent runs as. See [installation step 3](installation.md#step-3-pick-the-run-user). | If folders are unreadable |
 | `volumes` | varies | Photo folders (read-only, under `/volumes/…`) and the data folder (`/data`). | Yes, always |
 | `ports` | `"8787:8787"` | `NAS port:container port`. | If 8787 is taken; change the first number |

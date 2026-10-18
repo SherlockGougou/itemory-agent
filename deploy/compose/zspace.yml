@@ -1,0 +1,21 @@
+# 极空间 ZOS：Docker Compose；按实际位置修改 media 和 data 路径。
+services:
+  itemory-agent:
+    image: ccr.ccs.tencentyun.com/itemory/itemory-agent:1
+    container_name: itemory-agent
+    restart: unless-stopped
+    user: "1000:1000"
+    read_only: true
+    tmpfs: ["/tmp:size=128m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - ./media:/volumes/media:ro
+      - ./data:/data
+    ports:
+      - "8787:8787"
+    environment:
+      ITEMORY_PRESET: "balanced"
+      TZ: "Asia/Shanghai"
+    cpus: "1.5"
+    mem_limit: 2g

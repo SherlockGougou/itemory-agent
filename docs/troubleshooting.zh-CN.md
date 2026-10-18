@@ -34,9 +34,9 @@
 
 ## 镜像下载不了
 
-- 检查拼写：`ghcr.io/sherlockgougou/itemory-agent:1`，全部小写。镜像是公开的，不需要登录。
+- 检查拼写：`ccr.ccs.tencentyun.com/itemory/itemory-agent:1`，全部小写。镜像是公开的，不需要登录。
 - 出现 `no matching manifest` 之类的错误，说明 NAS 的处理器不受支持。镜像支持 `amd64`（Intel/AMD）和 `arm64`（64 位 ARM），较老的 32 位 ARM 机型无法运行。
-- 如果你的网络访问 `ghcr.io` 很慢或无法访问，请在 NAS 上为 Docker 配置代理后重试。
+- 国内默认使用腾讯云镜像；海外可换为 `ghcr.io/sherlockgougou/itemory-agent:1`。Registry 不可用时使用安装器 `--source oss` 或 [OSS 通用离线包](oss-distribution.zh-CN.md)，不要求配置 Docker 代理。
 
 ## 容器创建不出来
 

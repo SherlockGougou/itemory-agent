@@ -1,0 +1,21 @@
+# 绿联 UGOS Pro；离线安装时，使用下载包内固定版本的 compose-ugreen.yaml。
+services:
+  itemory-agent:
+    image: ccr.ccs.tencentyun.com/itemory/itemory-agent:1
+    container_name: itemory-agent
+    restart: unless-stopped
+    user: "1000:1000"
+    read_only: true
+    tmpfs: ["/tmp:size=128m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - /volume1:/volumes/volume1:ro
+      - /volume1/docker/itemory-agent:/data
+    ports:
+      - "8787:8787"
+    environment:
+      ITEMORY_PRESET: "balanced"
+      TZ: "Asia/Shanghai"
+    cpus: "1.5"
+    mem_limit: 2g

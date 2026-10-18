@@ -34,9 +34,9 @@ Start with the web console: **Overview** runs a set of health checks, and **Logs
 
 ## The image can't be downloaded
 
-- Check the spelling: `ghcr.io/sherlockgougou/itemory-agent:1`, all lowercase. The image is public, so no login is needed.
+- Check the spelling: `ccr.ccs.tencentyun.com/itemory/itemory-agent:1`, all lowercase. The image is public, so no login is needed.
 - An error like `no matching manifest` means your NAS's processor isn't supported. The image is built for `amd64` (Intel/AMD) and `arm64` (64-bit ARM). Older 32-bit ARM models can't run it.
-- If `ghcr.io` is slow or unreachable from your network, configure a proxy for Docker on the NAS and try again.
+- Tencent Cloud is the default domestic registry. Overseas, use `ghcr.io/sherlockgougou/itemory-agent:1`. If registry access fails, use installer `--source oss` or [universal OSS bundles](oss-distribution.md); a Docker proxy is not required.
 
 ## The container can't be created
 

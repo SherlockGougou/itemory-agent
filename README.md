@@ -2,6 +2,10 @@
 
 **English** | [简体中文](README.zh-CN.md)
 
+> **Online install / upgrade:** in your NAS SSH terminal, run `curl -fsSL https://itemory.gouqinglin.com/install.sh | bash`. Requires Bash, Python 3.9+ and Docker Compose V2. New photo mounts are read-only; upgrades preserve configuration and pairing. See [online installation](docs/online-install.md).
+
+All supported systems default to the public Tencent Cloud registry. GHCR remains available overseas; [OSS offline bundles](docs/oss-distribution.md) cover restricted networks. End users need no registry account.
+
 [![ci](https://github.com/SherlockGougou/itemory-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/SherlockGougou/itemory-agent/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
