@@ -16,7 +16,7 @@
 | 扫描完整性 | health 和扫描状态新增 `scan.complete`：仅成功完成全量/增量扫描并收敛索引后为 true；新进程、扫描中、失败、取消和不完整扫描均为 false。供客户端判断整天原片清单是否可用；没有新增批量删除 API。 | 0.6.0 |
 | 国内镜像 | 所有 Compose 模板及安装器默认使用腾讯云公开仓库，GHCR 为海外来源；0.6.0 支持 amd64/arm64。发布器核对 config/layer digest，并匿名拉取、核对 RootFS 与运行版本后更新稳定标签。 | 已上线，自动同步工作流已推送 |
 | 自动安装与升级 | 支持本机 Compose 安装；新装照片只读，升级备份 `/data` 并保留挂载、账号、配对、设置及运行参数；配置漂移停服前拒绝。显式选择 `tcr`、`ghcr` 或 `oss`，失败不静默切换。 | 安装器已上线 |
-| OSS 通用离线包 | amd64/arm64 镜像包、SHA-256 和九种系统模板；离线模板固定版本并禁止联网拉取。保留旧绿联 ZIP。 | 0.6.0 离线分发；自动上传需凭据及 `OSS_PUBLISH_ENABLED=true` |
+| OSS 通用离线包 | amd64/arm64 镜像包、SHA-256 和九种系统模板；离线模板固定版本并禁止联网拉取。 | 0.6.0 离线分发；自动上传需凭据及 `OSS_PUBLISH_ENABLED=true` |
 
 删除接口对应 `internal/api/delete.go`、`server.go`、`handlers.go`；设置在 `internal/config/`；索引与缓存清理在 `internal/store/`、`internal/thumbs/`；完整性状态在 `internal/scan/`。分发与安装代码在 `.github/workflows/`、`scripts/`、`install.sh`、`deploy/compose/`。
 

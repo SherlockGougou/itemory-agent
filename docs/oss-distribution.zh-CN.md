@@ -48,9 +48,9 @@ python3 -m pip install -r scripts/requirements-publish.txt
 python3 scripts/publish_oss_images.py --version 0.5.0 --output .agent-temp/oss-0.5.0 --package-only
 ```
 
-每个版本包含两种架构的 `.tar.gz`、校验文件、通用 `-offline.zip` 与 `manifest.json`。通用 ZIP 内有镜像包、SHA256SUMS、`compose/` 下全部九种固定版本模板和中英文说明；模板禁止联网拉取。旧 `-ugreen.zip` 地址为已有用户保留。镜像来自已发布 GHCR，不重新构建，并检查平台、来源标记与二进制版本。
+每个版本包含两种架构的 `.tar.gz`、校验文件、通用 `-offline.zip` 与 `manifest.json`。通用 ZIP 内有镜像包、SHA256SUMS、`compose/` 下全部九种固定版本模板和中英文说明；模板禁止联网拉取。镜像来自已发布 GHCR，不重新构建，并检查平台、来源标记与二进制版本。
 
-产物首先上传到 `versions/<version>/`，使用禁止覆盖选项；重试只接受大小和 SHA-256 元数据一致的现有对象，没有元数据时完整下载核对 SHA-256。公网匿名下载并核对两种架构的完整镜像包后，才更新 `channels/1.json` 、`channels/1/itemory-agent-<arch>-offline.zip` 及对应 `.sha256`（保留旧绿联链接）。0.x 正式版本沿用现有 `:1` 稳定通道；预发布版本不更新稳定通道。若下载验证失败，工作流失败且不更新安装器通道；已上传文件保留以便重试。
+产物首先上传到 `versions/<version>/`，使用禁止覆盖选项；重试只接受大小和 SHA-256 元数据一致的现有对象，没有元数据时完整下载核对 SHA-256。公网匿名下载并核对两种架构的完整镜像包后，才更新 `channels/1.json` 、`channels/1/itemory-agent-<arch>-offline.zip` 及对应 `.sha256`。0.x 正式版本沿用现有 `:1` 稳定通道；预发布版本不更新稳定通道。若下载验证失败，工作流失败且不更新安装器通道；已上传文件保留以便重试。
 
 ## 所有系统离线安装
 

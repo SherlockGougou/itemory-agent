@@ -21,9 +21,9 @@ python3 -m pip install -r scripts/requirements-publish.txt
 python3 scripts/publish_oss_images.py --version 0.5.0 --output .agent-temp/oss-0.5.0 --package-only
 ```
 
-Each version contains amd64/arm64 `.tar.gz` archives, checksums, universal `-offline.zip` bundles and a manifest. Universal ZIPs include the archive, SHA256SUMS, all nine pinned templates under `compose/`, and bilingual instructions. Templates prohibit registry pulls. Legacy `-ugreen.zip` links remain for existing users. Images come from published GHCR releases without rebuilding and are checked for platform, source label and binary version.
+Each version contains amd64/arm64 `.tar.gz` archives, checksums, universal `-offline.zip` bundles and a manifest. Universal ZIPs include the archive, SHA256SUMS, all nine pinned templates under `compose/`, and bilingual instructions. Templates prohibit registry pulls. Images come from published GHCR releases without rebuilding and are checked for platform, source label and binary version.
 
-Versioned objects under `versions/<version>/` cannot be overwritten; retries accept matching size and SHA-256 metadata, or verify the full download when checksum metadata is missing. Both image archives must pass complete anonymous HTTPS download verification before updating `channels/1.json` and the stable `channels/1/itemory-agent-<arch>-offline.zip` links/checksums (retaining legacy UGREEN links). Official 0.x releases retain the existing stable channel `1`; prereleases do not update stable channels. Failures retain uploaded objects and do not advance the installer channel.
+Versioned objects under `versions/<version>/` cannot be overwritten; retries accept matching size and SHA-256 metadata, or verify the full download when checksum metadata is missing. Both image archives must pass complete anonymous HTTPS download verification before updating `channels/1.json` and the stable `channels/1/itemory-agent-<arch>-offline.zip` links/checksums. Official 0.x releases retain the existing stable channel `1`; prereleases do not update stable channels. Failures retain uploaded objects and do not advance the installer channel.
 
 ## Offline installation on all systems
 

@@ -9,13 +9,8 @@ import shutil
 import subprocess
 import urllib.error
 import urllib.request
-import zipfile
-
-import yaml
-
 from package_offline_bundle import package_archive
 
-ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY = "ghcr.io/sherlockgougou/itemory-agent"
 
 
@@ -54,32 +49,9 @@ def package_image(version, arch, output):
     checksum = sha256(archive)
     checksums = output / (archive.name + ".sha256")
     checksums.write_text(checksum + "  " + archive.name + "\n")
-    compose_model = yaml.safe_load((ROOT / "deploy/compose/ugreen.yml").read_text())
-    compose_model["services"]["itemory-agent"].update(image=reference, pull_policy="never")
-    compose = yaml.safe_dump(compose_model, allow_unicode=True, sort_keys=False)
-    instructions = (
-        "Itemory " + version + " — linux/" + arch + "\n\n"
-        "中文：解压本安装包，将 .tar.gz 镜像文件上传至 NAS，在 Docker → 镜像 → 本地镜像中导入。\n"
-        "在文件管理中新建 /volume1/docker/itemory-agent，再在 Docker → 项目中新建项目，粘贴 compose-ugreen.yaml。\n"
-        "确认照片存储卷、数据目录和 uid:gid 符合设备实际配置；无需特权模式。\n"
-        "pull_policy: never 必须保留；不要把镜像文件当成应用安装包，也不要执行 docker import。\n"
-        "启动后访问 http://<NAS局域网IP>:8787，创建管理员账号，再用 Itemory 扫码配对。\n"
-        "升级先备份 /data，保持原数据挂载、权限和端口；不要直接用此模板覆盖已有服务。\n\n"
-        "English: extract this ZIP, upload the .tar.gz file to the NAS, and import it in Docker → Images.\n"
-        "Create /volume1/docker/itemory-agent and a Docker Compose project using compose-ugreen.yaml.\n"
-        "Check volume paths and uid:gid, retain pull_policy: never, then open http://<NAS-IP>:8787.\n"
-        "For upgrades, back up /data and preserve the existing configuration; do not replace it with this template.\n\n"
-        "https://itemory.gouqinglin.com/nas-guide.html\n"
-    )
-    bundle = output / ("itemory-agent-" + version + "-" + arch + "-ugreen.zip")
-    with zipfile.ZipFile(bundle, "x", compression=zipfile.ZIP_STORED) as package:
-        package.write(archive, archive.name)
-        package.write(checksums, "SHA256SUMS")
-        package.writestr("compose-ugreen.yaml", compose)
-        package.writestr("README.txt", instructions)
     offline = package_archive(archive, version, arch, output)
     return {"file": archive.name, "sha256": checksum, "size": archive.stat().st_size,
-            "image_id": metadata["Id"], "bundle": bundle.name, "bundle_sha256": sha256(bundle),
+            "image_id": metadata["Id"],
             "offline_bundle": offline["file"], "offline_sha256": offline["sha256"]}
 
 
@@ -128,7 +100,7 @@ def publish(version, output, manifest):
         if path.is_file():
             upload(path, "versions/" + version + "/" + path.name)
     for entry in manifest["images"].values():
-        for name, expected in ((entry["file"], entry["sha256"]), (entry["bundle"], entry["bundle_sha256"]),
+        for name, expected in ((entry["file"], entry["sha256"]),
                                (entry["offline_bundle"], entry["offline_sha256"])):
             request = urllib.request.Request(base + "/versions/" + version + "/" + name)
             digest = hashlib.sha256()
@@ -146,7 +118,6 @@ def publish(version, output, manifest):
         if channel == "0":
             channel = "1"
         for arch, entry in manifest["images"].items():
-            upload(output / entry["bundle"], "channels/" + channel + "/itemory-agent-" + arch + "-ugreen.zip", True)
             upload(output / entry["offline_bundle"], "channels/" + channel + "/itemory-agent-" + arch + "-offline.zip", True)
             alias_checksum = output / ("channel-" + arch + ".sha256")
             alias_checksum.write_text(entry["offline_sha256"] + "  itemory-agent-" + arch + "-offline.zip\n")
