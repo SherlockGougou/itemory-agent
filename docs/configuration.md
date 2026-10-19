@@ -24,7 +24,7 @@ Most settings are changed from the Itemory app under **Itemory Private Cloud Set
 | `TZ` | `Asia/Shanghai` | Time zone used to decide which day a photo belongs to. | Yes |
 | `ITEMORY_PRESET` | `balanced` | Initial [performance preset](#performance-presets). Only used on the very first start. | Optional |
 | `mem_limit` | `2g` | Maximum memory. See [Memory limit](#memory-limit). | If you have large videos |
-| `cpus` | `"1.5"` | Maximum CPU cores. See [CPU limit](#cpu-limit). | Optional; must be lowered on a single-core machine |
+| `cpus` | not set | Docker's hard CPU cap. See [CPU limit](#cpu-limit). It is unset by default, so usage is governed by the parallel jobs of the [performance preset](#performance-presets); if you add the line yourself, the value can't exceed the NAS's CPU cores. | Optional; only to cap CPU use |
 | `restart` | `unless-stopped` | Start again after a crash or a NAS reboot. | No |
 | `read_only`, `tmpfs`, `cap_drop`, `security_opt` | enabled | Hardening; see below. | No |
 
@@ -92,7 +92,16 @@ A killed job leaves no clear error message, which is why it is best to size the 
 
 ## CPU limit
 
-`cpus` only affects speed, never correctness. It can't be higher than the number of CPU cores in the machine: on a single-core NAS, Docker refuses to create the container until you change it to `"1"` or lower. The template uses 1.5 cores so that the first full scan doesn't slow down other services on a small NAS. On a fast machine the same batch of thumbnails can take about 16 times longer at 1.5 cores than without a limit. If the first scan is too slow, raise `cpus` temporarily and lower it again once the library is indexed.
+`cpus` is a hard limit enforced by Docker, and Docker checks it against the number of CPU cores in the machine: a value above that number makes container creation fail with `Range of CPUs is from 0.01 to N.00, as there are only N CPUs available`. The templates and the online installer therefore no longer set it. No single fixed value suits both a single-core and a many-core machine: anything above 1 breaks a single-core NAS, while 1 throttles a larger machine.
+
+With no `cpus` set there is no hard CPU ceiling. How much CPU the agent uses is decided by the parallel jobs of the [performance preset](#performance-presets): `light` processes 1 file at a time, `balanced` (the default) 2, and `performance` 4. To use less CPU, pick `light` under **Resource Preset** in the app or the web console, or lower **Concurrent tasks** on its own.
+
+`cpus` only affects speed, never correctness: thumbnails and the index are still built, just more slowly. A cap makes a full-library thumbnail batch noticeably slower; on a fast machine, capping it at 1.5 cores made the same batch take about 16 times longer than with no limit. Add it yourself only when you really need to cap CPU use. The syntax is `cpus: "2"` in the template (quoted), and the number has to follow these rules:
+
+- it can't exceed the CPU cores of this machine, or Docker refuses to create the container;
+- on a single-core machine the only valid value is `"1"`.
+
+To speed up the first scan, `cpus` is not the knob to turn: switch the [performance preset](#performance-presets) to `performance` under **Itemory Private Cloud Settings → Resource Preset** in the app (or **Resource Preset** in the web console) and switch back afterwards. Before the very first start, a new installation can also set `ITEMORY_PRESET` to `performance` in the template.
 
 ## Deleting photos
 

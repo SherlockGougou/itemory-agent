@@ -18,7 +18,7 @@ The script's source of truth is [`install.sh`](../install.sh); the website serve
 
 The script asks for one or more photo directories, an **independent, empty** installation directory, a non-root `uid:gid`, a port (default 8787), and a timezone. Prompts read `/dev/tty`, so they work with a curl pipeline. Photos, installation data and backups must not contain one another. Do not select Docker's internal data directory.
 
-The runtime user is suggested from the first photo folder's owner, then checked in the actual image with read-only mounts. This checks the selected roots and a sample file; it cannot certify every nested ACL. Photos are mounted read-only, deleting remains disabled by the service's default settings, and photo ownership/permissions are never modified. Only the newly created service data directory may have its ownership set. The default resource limits are 1.5 CPUs and 2 GiB RAM; larger videos may require more RAM as described in [configuration](configuration.md#memory-limit).
+The runtime user is suggested from the first photo folder's owner, then checked in the actual image with read-only mounts. This checks the selected roots and a sample file; it cannot certify every nested ACL. Photos are mounted read-only, deleting remains disabled by the service's default settings, and photo ownership/permissions are never modified. Only the newly created service data directory may have its ownership set. A new installation sets no hard CPU cap (Docker checks `cpus` against the machine's core count, so no fixed value suits both single-core and many-core NAS models); CPU use is governed by the concurrency of the `balanced` preset. The memory limit is 2 GiB. To cap or speed things up, see [CPU limit](configuration.md#cpu-limit). Larger videos may require more RAM as described in [memory limit](configuration.md#memory-limit).
 
 By default, the installer pulls `ccr.ccs.tencentyun.com/itemory/itemory-agent:1` for the Docker server architecture and pins that repository’s immutable RepoDigest. No user login is required. This applies to every supported NAS and Linux system. Use `--source ghcr` overseas or explicitly select `--source oss` when a registry is unavailable. OSS downloads are checked for size and SHA-256, loaded, validated for platform and official source label, and pinned to a local Image ID. Source failures stop explicitly without silently switching providers. See [Tencent Cloud publishing](tcr-distribution.md) and [universal OSS installation](oss-distribution.md).
 
@@ -42,9 +42,41 @@ curl -fsSL https://itemory.gouqinglin.com/install.sh | bash -s -- --source oss
 
 To review before execution, download the script into a directory you control, inspect it, then run `bash install.sh` instead.
 
+## Logs and feedback
+
+At the start, the installer prints the log path for this run, of the form `~/.cache/itemory-agent/logs/install-<YYYYMMDD-HHMMSS>-<pid>.log`. The log directory is mode 700 and the file is mode 600. Under `sudo` the log goes to the same location in the home directory of the account that ran sudo, and the script hands the file back to that account; when you are logged in as root directly it lands in `/root/.cache/itemory-agent/logs/`. If the home directory is not writable it falls back to `/tmp/itemory-agent-logs/`; if that fails too, the installer warns and keeps going, leaving only the on-screen output. Use the path the script prints.
+
+The log records the commands run in each stage, check results and Docker command output, so you don't need to capture the terminal separately when reporting a problem. It never records passwords, pairing tokens or photo contents, and suspected credentials in command output are replaced before writing.
+
+- `--log-file <absolute-path>`: write the log to a location you choose. Only an absolute path is accepted. Keep it out of your photo and service-data folders.
+- `--debug`: also show the more detailed steps and command output on screen. That detail is written to the log file either way; `--debug` only makes it visible too.
+
+```bash
+curl -fsSL https://itemory.gouqinglin.com/install.sh | bash -s -- --debug --log-file <absolute-path>
+```
+
+The console marks the current stage as `[n/7]` and names it, for example `[4/7]` while fetching the image. Upgrades and new installations pass through different stages, so the numbers are not necessarily consecutive. On failure the script prints the reason, the failing stage, the log path, the command that copies the last 200 lines, and the support address:
+
+```bash
+tail -n 200 <log-path>
+```
+
+When Docker returns an error, the message lists the common causes for that output, such as insufficient Docker Socket permissions, too little disk space, a port already in use, an unsupported architecture or an unavailable image source. See [troubleshooting](troubleshooting.md) for further steps.
+
+When an installation or upgrade finishes, whether it succeeded or failed, the script saves a second copy of the log as `install.log` in the installation-record directory and prints the path of that copy. For a new installation the record directory is `<installation>/.itemory-online/<timestamp-id>/`; for an upgrade it sits next to `data.tar`. That directory is mode 700 and also holds the active configuration and sensitive backups: don't publish or delete it. A failure that happens before the record directory exists (argument checks, a taken port, Compose drift) leaves no copy, so send the default log file printed earlier instead. A run that finds the image already current and only checks health also creates no record directory.
+
+When submitting a report, send the log copy, your NAS model and system version, and the exact command you ran to qinglingou@gmail.com, or [open an issue](https://github.com/SherlockGougou/itemory-agent/issues/new). If root created the log, reading or copying it requires `sudo`.
+
 ## Existing installations and upgrades
 
-The script detects official Itemory containers, including containers created from the existing Compose templates. It reads the original Compose files, project name and working directory from Docker labels. Original files must still exist, and the resolved config hash must match the running container. Missing configuration, config drift, unsupported data layouts and ambiguous installations cause a failure **before the service is stopped**. If Compose itself has changed versions, reconcile the configuration and running service using the original Compose version before retrying. Existing `docker run` containers require manual migration; the script does not guess their configuration.
+The script detects official Itemory containers, including containers created from the existing Compose templates. It reads the original Compose files, project name and working directory from Docker labels. Original files must still exist, and the resolved config hash must match the running container. Missing configuration, config drift, unsupported data layouts and ambiguous installations cause a failure **before the service is stopped**. If Compose itself has changed versions, reconcile the configuration and running service using the original Compose version before retrying.
+
+Itemory containers created by older `docker run` commands or local image tags do not have Compose configuration. The installer does not treat them as an ordinary upgrade. It first shows the container name, image, `/data` and photo mounts, runtime user, ports and resource limits, then explains why it cannot take over directly and asks the user to choose:
+
+- `1. Migrate and continue`: stop the old container, back up `/data`, rename the old container to `itemory-agent-before-migration-<timestamp>` for rollback, generate a Compose project with the detected mounts, user, environment, ports and resource limits, start the official image, and verify health, administrator credentials, `serverId` and pairings. Photos are never deleted.
+- `2. Exit`: stop without changing the running service.
+
+The migration prompt is split into detected state, current configuration, what migration does, what stays unchanged, and a numbered choice, so no English command needs to be remembered. With non-interactive execution, `--yes` alone never migrates a running service. Use `--migrate-existing` only when you explicitly accept that migration. The installer refuses automatic migration when it finds custom entrypoint/command values, a custom working directory, non-default networking, added capabilities, devices, custom DNS or other runtime settings it cannot preserve safely; see the [upgrade guide](upgrading.md) for manual migration.
 
 For an upgrade, the script:
 
@@ -66,7 +98,7 @@ For a specific release:
 curl -fsSL https://itemory.gouqinglin.com/install.sh | bash -s -- --version 0.5.0
 ```
 
-`--yes` skips confirmation and requires explicit photo paths for a new installation. `--help` lists the available options. Installation parameters such as new paths or users are rejected during upgrades; edit the active Compose config separately if you intend to change deployment settings.
+`--yes` skips confirmation and requires explicit photo paths for a new installation. When an old-style container is detected, `--yes` still stops before any change: choose `1. Migrate and continue` interactively or pass `--migrate-existing` when migration is explicitly accepted. `--help` lists the available options. Installation and migration reject new paths, users and other deployment changes; edit the active Compose config separately if you intend to change deployment settings.
 
 ## Failure and recovery
 

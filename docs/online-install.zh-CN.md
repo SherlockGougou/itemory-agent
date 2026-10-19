@@ -18,7 +18,7 @@ curl -fsSL https://itemory.gouqinglin.com/install.sh | bash
 
 脚本会询问一个或多个照片目录、**独立且为空**的安装目录、非 root `uid:gid`、服务端口（默认 8787）和时区。交互从 `/dev/tty` 读取，支持 curl 管道。照片、安装数据和备份不能互相包含，不要选择 Docker 自身的数据目录。
 
-运行用户根据第一个照片目录的属主给出建议，再使用实际镜像和只读挂载检查根目录及样本文件的可读性；这不代表所有深层目录的 ACL 都已验证。照片默认只读，删除模式沿用服务默认值（关闭），脚本不修改照片权限或属主。只有新建的服务数据目录可能设置属主。默认限制为 1.5 CPU、2 GiB 内存；大型视频可能需要更多内存，见[配置说明](configuration.zh-CN.md#内存上限)。
+运行用户根据第一个照片目录的属主给出建议，再使用实际镜像和只读挂载检查根目录及样本文件的可读性；这不代表所有深层目录的 ACL 都已验证。照片默认只读，删除模式沿用服务默认值（关闭），脚本不修改照片权限或属主。只有新建的服务数据目录可能设置属主。全新安装不设置 CPU 硬上限（Docker 的 `cpus` 会按机器核数校验，固定值无法同时适配单核和多核），CPU 占用由性能档位 `balanced` 的并发数控制；内存上限 2 GiB。想限速或加快首次扫描，见[CPU 上限](configuration.zh-CN.md#cpu-上限)。大型视频可能需要更多内存，见[内存上限](configuration.zh-CN.md#内存上限)。
 
 脚本默认从腾讯云公开镜像仓库 `ccr.ccs.tencentyun.com/itemory/itemory-agent:1` 拉取与 Docker 服务端架构匹配的镜像，固定到该仓库的不可变 RepoDigest。无需用户登录，适用于所有支持的 NAS 与 Linux 系统。海外可用 `--source ghcr`；Registry 不可用时可显式使用 `--source oss`，从 OSS 下载镜像包、核对大小与 SHA-256、导入并检查平台和官方来源标记，再固定到本地 Image ID。来源失败会明确退出，不静默切换。见 [腾讯云镜像发布](tcr-distribution.zh-CN.md)和 [OSS 通用离线安装](oss-distribution.zh-CN.md)。
 
@@ -42,9 +42,41 @@ curl -fsSL https://itemory.gouqinglin.com/install.sh | bash -s -- --source oss
 
 希望先审查脚本时，可以下载到自己的目录，阅读后再执行 `bash install.sh`。
 
+## 日志与反馈
+
+安装器在开始时打印本次运行的日志路径，形如 `~/.cache/itemory-agent/logs/install-<YYYYMMDD-HHMMSS>-<pid>.log`，日志所在目录权限 700、文件权限 600。用 `sudo` 执行时，日志默认写在执行 sudo 的账号主目录下的同一位置，脚本会把文件交还给该账号；以 root 身份直接登录时则在 `/root/.cache/itemory-agent/logs/`。主目录不可写时会退到 `/tmp/itemory-agent-logs/`；连这里也写不进去时，脚本会提示并继续安装，此时只能提供屏幕上的输出。请以脚本打印的路径为准。
+
+日志记录每个阶段执行的命令、检查结果和 Docker 命令输出，反馈问题时不需要另外抓取终端内容。日志不记录密码、配对令牌或照片内容；命令输出里的疑似凭据会先被替换。
+
+- `--log-file <绝对路径>`：把日志写到指定位置，只接受绝对路径。建议不要放进照片目录或服务数据目录。
+- `--debug`：把更详细的步骤和命令输出显示在屏幕上。这些内容本来就已经写进日志文件，`--debug` 只是同时显示出来。
+
+```bash
+curl -fsSL https://itemory.gouqinglin.com/install.sh | bash -s -- --debug --log-file <绝对路径>
+```
+
+控制台用 `[编号/7]` 标出当前阶段，例如 `[4/7] 获取镜像`；升级和全新安装经过的阶段不同，编号不一定连续。失败时脚本打印失败原因、失败步骤、日志文件路径、复制最近 200 行日志的命令，以及支持邮箱：
+
+```bash
+tail -n 200 <日志文件路径>
+```
+
+Docker 返回错误时，提示里会列出对应这段报文的常见原因，例如 Docker Socket 权限不足、磁盘空间不足、端口已被占用、架构不受支持或镜像来源不可用；进一步排查见[常见问题](troubleshooting.zh-CN.md)。
+
+脚本在安装或升级结束（成功或失败）时，把本次日志另存一份到安装记录目录下的 `install.log`，并打印这个副本的路径。全新安装时记录目录为 `<安装目录>/.itemory-online/<时间-id>/`；升级时与 `data.tar` 在同一目录。该目录权限 700，其中还有当前配置和敏感信息，不要公开或删除。失败发生在记录目录创建之前（例如参数检查、端口占用、Compose 配置不一致）时没有这个副本，请改发上面打印的默认日志文件；已是目标镜像、只做健康检查的那次运行同样不创建记录目录。
+
+反馈时请把日志副本、NAS 型号与系统版本、执行的完整命令发到 qinglingou@gmail.com，也可以[提交 issue](https://github.com/SherlockGougou/itemory-agent/issues/new)。日志由 root 创建时，读取或复制它需要加 `sudo`。
+
 ## 已有安装与升级
 
-脚本识别官方镜像容器，包括既有 Compose 模板创建的容器，从 Docker labels 取得原配置文件、项目名和工作目录。原文件必须仍存在，解析后的配置 hash 必须与容器一致。配置缺失、配置发生变化、数据布局不支持或检测到多个安装时，**停服前就会退出**。Compose 自身升级也可能改变 hash，需要用原 Compose 版本核对并同步配置与运行状态后再重试。通过 `docker run` 创建的容器需要手动迁移，脚本不会猜测部署配置。
+脚本识别官方镜像容器，包括既有 Compose 模板创建的容器，从 Docker labels 取得原配置文件、项目名和工作目录。原文件必须仍存在，解析后的配置 hash 必须与容器一致。配置缺失、配置发生变化、数据布局不支持或检测到多个安装时，**停服前就会退出**。Compose 自身升级也可能改变 hash，需要用原 Compose 版本核对并同步配置与运行状态后再重试。
+
+通过旧版 `docker run` 或本地标签创建的 Itemory 容器没有 Compose 配置，安装器不会直接把它当成普通升级。脚本会先显示容器名、镜像、`/data` 和照片挂载、运行用户、端口和资源限制，并说明它无法直接接管；然后让用户选择：
+
+- `1. 迁移并继续`：停止旧容器，完整备份 `/data`，把旧容器改名为 `itemory-agent-before-migration-<时间>` 保留，再按检测到的挂载、用户、环境变量、端口和资源限制生成 Compose 配置，启动官方镜像并核对健康状态、管理员、`serverId` 和配对。照片不会删除，迁移前不会修改现有服务。
+- `2. 退出`：立即退出，旧容器继续运行，不做任何修改。
+
+迁移前会分块显示「检测结果、当前配置、迁移会做什么、不会改变、请选择」，不需要记英文命令。非交互执行时，`--yes` 不会自动迁移正在使用的服务；需要明确传入 `--migrate-existing`。遇到自定义 `entrypoint`、`command`、工作目录、非默认网络、额外 capability、设备映射、自定义 DNS 或其他安装器无法确定语义的参数时，会自动拒绝迁移并说明原因；这种情况需要按[升级说明](upgrading.zh-CN.md)手动迁移。
 
 升级步骤：
 
@@ -66,7 +98,7 @@ curl -fsSL https://itemory.gouqinglin.com/install.sh | bash -s -- --container it
 curl -fsSL https://itemory.gouqinglin.com/install.sh | bash -s -- --version 0.5.0
 ```
 
-`--yes` 跳过确认，全新安装时必须提供照片路径。用 `--help` 查看参数。升级不接受新的照片目录、用户等安装参数；有意修改部署设置时，单独编辑当前 Compose 配置。
+`--yes` 跳过确认，全新安装时必须提供照片路径。检测到旧式容器时，`--yes` 仍会停下来；交互运行并选择「1. 迁移并继续」，或在明确接受迁移时加 `--migrate-existing`。用 `--help` 查看参数。升级和迁移不接受新的照片目录、用户等安装参数；有意修改部署设置时，单独编辑当前 Compose 配置。
 
 ## 失败与恢复
 

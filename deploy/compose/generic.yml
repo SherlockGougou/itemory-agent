@@ -25,7 +25,6 @@ services:
     environment:
       ITEMORY_PRESET: "balanced"         # light | balanced | performance (first start only)
       TZ: "Asia/Shanghai"                # your time zone, e.g. Europe/Berlin
-    cpus: "1.5"                          # speed only; raise it temporarily for the first scan
     # Memory must fit the largest single video in your library, not the file count:
     # extracting a frame from a 2 GB video needs more than 512m. Too little memory
     # makes thumbnails silently fail. See docs/configuration.md#memory-limit

@@ -41,7 +41,9 @@ Start with the web console: **Overview** runs a set of health checks, and **Logs
 
 ## The container can't be created
 
-If the container never appears and Docker reports `Range of CPUs is from 0.01 to 1.00, as there are only 1 CPUs available`, the machine has a single CPU core and the template asks for 1.5. Change `cpus` to `"1"`, or delete the line, and create the container again.
+If the container never appears and Docker reports `Range of CPUs is from 0.01 to 1.00, as there are only 1 CPUs available`, the `cpus` value in your configuration is higher than the CPU cores of the machine: the message ends with `only 1 CPUs available`, and the requested value is above 1. The current templates and the configurations the online installer writes no longer contain that line, so it usually comes from an older template or from a `cpus` entry you added yourself.
+
+Delete the line. Without it there is no hard CPU ceiling and usage is governed by the [performance preset](configuration.md#performance-presets). If you do need a cap, set it to `"1"` (the only valid value on a single-core machine) and create the container again.
 
 For errors about a port or a folder path, see the table in the next section.
 
@@ -124,7 +126,7 @@ A photo whose thumbnail hasn't been made yet gets one the moment the app asks fo
 The agent also makes thumbnails ahead of time after each scan, up to the **Nightly thumbnail limit**. Right after the first scan of a large library, most thumbnails are therefore still missing. To catch up faster:
 
 - raise **Nightly thumbnail limit** in the app and run **Scan for new items**; generation starts again when the scan ends;
-- raise `cpus` in the template for the time being (see [CPU limit](configuration.md#cpu-limit)).
+- switch the [performance preset](configuration.md#performance-presets) to `performance` for the time being: change it in the app under **Itemory Private Cloud Settings → Resource Preset**, which raises concurrent tasks from 2 to 4; switch back after catching up.
 
 **Logs** in the console shows a line `thumbnail pre-generation finished` after each round, with the number of thumbnails made and the reason it stopped: `done` (nothing is missing), `budget` (the nightly limit was reached) or `cache` (the cache is nearly full; raise **Private cloud cache limit**). See [Background thumbnails](configuration.md#background-thumbnails).
 

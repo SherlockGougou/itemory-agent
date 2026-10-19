@@ -17,5 +17,4 @@ services:
     environment:
       ITEMORY_PRESET: "balanced"
       TZ: "Asia/Shanghai"
-    cpus: "1.5"
     mem_limit: 2g
