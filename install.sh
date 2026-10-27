@@ -39,7 +39,7 @@ from pathlib import Path
 
 REPOSITORY = "ghcr.io/sherlockgougou/itemory-agent"
 TCR_REPOSITORY = "ccr.ccs.tencentyun.com/itemory/itemory-agent"
-DEFAULT_DOWNLOAD_BASE = "https://itemory-downloads.oss-cn-chengdu.aliyuncs.com/releases/itemory-agent"
+DEFAULT_DOWNLOAD_BASE = "https://cdn.gouqinglin.com/releases/itemory-agent"
 
 # 反馈渠道与安装器版本号；版本号让支持人员知道用户跑的是哪一版脚本。
 INSTALLER_VERSION = "2026-10-19"

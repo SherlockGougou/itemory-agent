@@ -85,13 +85,13 @@ def publish(version, output, manifest):
                     raise RuntimeError("不可覆盖已发布的不同内容：" + key)
             except urllib.error.HTTPError as error:
                 if error.code != 404:
-                    raise RuntimeError("OSS 下载前缀未开放匿名读取，或无法访问：HTTP " + str(error.code)) from error
+                    raise RuntimeError("CDN 下载地址无法访问：HTTP " + str(error.code)) from error
         if path.stat().st_size > 5 * 1024**3:
             raise RuntimeError("当前发布器仅支持不超过 5 GiB 的单个文件")
         command = ["ossutil", "api", "put-object", "--bucket", bucket, "--key", prefix + "/" + key,
                    "--body", "file://" + str(path.resolve()), "--region", os.environ["OSS_REGION"],
                    "--metadata", "sha256=" + digest, "--cache-control",
-                   "no-cache" if mutable else "public,max-age=31536000,immutable"]
+                   "public,max-age=60" if mutable else "public,max-age=31536000,immutable"]
         if not mutable:
             command.append("--forbid-overwrite")
         subprocess.run(command, check=True, env=environment)
